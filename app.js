@@ -2,7 +2,7 @@
 
 // Google Sheets configuration
 // You can either define CONFIG here or load it from config.js
-const CONFIG = window.CONFIG || {
+const DEFAULT_CONFIG = {
     // Choose your authentication method: 'csv', 'api_key', or 'oauth'
     AUTH_METHOD: 'oauth', // Using OAuth for secure access
     
@@ -21,6 +21,7 @@ const CONFIG = window.CONFIG || {
     DISCOVERY_DOCS: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
     SCOPES: 'https://www.googleapis.com/auth/spreadsheets.readonly'
 };
+const CONFIG = Object.assign({}, DEFAULT_CONFIG, (window.CONFIG || {}));
 
 // Chart instances
 let volumeChart, paymentMethodsChart, successRateChart, revenueByRegionChart;

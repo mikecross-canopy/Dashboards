@@ -245,7 +245,7 @@ function renderADMActivities(rows){
       type:'bar',
       data:{ labels, datasets:[{ label:'ADM Metrics', data:values.map(to2), backgroundColor:colors, borderColor:colors.map(c=>c.replace('0.8','1')), borderWidth:1, borderRadius:6, barThickness:40 }] },
       options:{ responsive:true, maintainAspectRatio:false, resizeDelay:200,
-        plugins:{ legend:{display:false}, title:{display:true, text:'ADM Activities', font:{size:16, weight:'600'}, padding:20}, tooltip:{ callbacks:{ label:(ctx)=>{ const v=ctx.raw, l=ctx.label; if(l==='Avg Call Duration') return `${l}: ${formatDurationMinutes(v)}`; if(l==='Calls/Demo'||l==='Emails/Demo') return `${l}: ${to2(v)}`; if(l==='Answered Calls %') return `${l}: ${to2(v)}%`; return `${l}: ${Number(v).toLocaleString()}`; } } } },
+        plugins:{ legend:{display:false}, title:{display:true, text:'ADM Activities', font:{size:16, weight:'600'}, padding:20}, datalabels:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=>{ const v=ctx.raw, l=ctx.label; if(l==='Avg Call Duration') return `${l}: ${formatDurationMinutes(v)}`; if(l==='Calls/Demo'||l==='Emails/Demo') return `${l}: ${to2(v)}`; if(l==='Answered Calls %') return `${l}: ${to2(v)}%`; return `${l}: ${Number(v).toLocaleString()}`; } } } },
         scales:{ y:{ beginAtZero:true, grid:{display:true,color:'rgba(0,0,0,0.05)'}, ticks:{font:{size:11}} }, x:{ grid:{display:false}, ticks:{font:{size:11}, maxRotation:45, minRotation:45} } }
       }
     });
