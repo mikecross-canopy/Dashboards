@@ -1,0 +1,1367 @@
+/* global Chart, gapi, google */
+
+// Google Sheets configuration
+// You can either define CONFIG here or load it from config.js
+const CONFIG = window.CONFIG || {
+    // Choose your authentication method: 'csv', 'api_key', or 'oauth'
+    AUTH_METHOD: 'oauth', // Using OAuth for secure access
+    
+    // For CSV method (easiest - just publish your sheet to web)
+    CSV_URL: 'https://docs.google.com/spreadsheets/d/e/YOUR_SHEET_ID/pub?output=csv',
+    
+    // For API Key method (free, requires Google Cloud setup)
+    SPREADSHEET_ID: '1XhNpvY1SYsvszBugJeD-gQKar9OwU4lLLiF5cTkAk6I',
+    SHEET_NAME: 'PaymentOpps', // The actual tab name in your spreadsheet
+    SHEET_GID: '575449998', // The gid from the URL
+    RANGE: 'A1:Z1000', // Fetching all columns, first 1000 rows
+    API_KEY: 'YOUR_GOOGLE_SHEETS_API_KEY',
+    
+    // For OAuth method (free, most secure)
+    CLIENT_ID: '630950450890-lofitb7ofs2q6ae3olqv1jis88uhfjeg.apps.googleusercontent.com',
+    DISCOVERY_DOCS: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
+    SCOPES: 'https://www.googleapis.com/auth/spreadsheets.readonly'
+};
+
+// Chart instances
+let volumeChart, paymentMethodsChart, successRateChart, revenueByRegionChart;
+let ownerPerformanceChart, winRateChart, sourceChart, ageChart;
+let processorChart, segmentChart;
+
+// Google API client state
+let gapiInited = false;
+let gisInited = false;
+let tokenClient;
+let isLoadingData = false; // Prevent multiple simultaneous data loads
+let dataLoaded = false; // Track if data has been loaded successfully
+let currentDateFilter = {
+    startDate: new Date('2025-04-01'),
+    endDate: null, // null means no end date (open-ended)
+    filterType: 'from-2025-04-01'
+};
+
+// Define allowed opportunity owners
+const ALLOWED_OWNERS = [
+    'Jaxon Eady',
+    'Carson Taylor', 
+    'Matt Hoffman',
+    'Nicholas Linares',
+    'Jacob Lucas'
+];
+
+// Initialize the dashboard
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        console.log('Dashboard initializing...');
+        console.log('Auth method:', CONFIG.AUTH_METHOD);
+        
+        // Load Google Sheets data based on auth method
+        if (CONFIG.AUTH_METHOD === 'oauth') {
+            console.log('Initializing OAuth...');
+            await initOAuth();
+            return; // OAuth will render after authentication
+        } else if (CONFIG.AUTH_METHOD === 'csv') {
+            const data = await fetchCSVData();
+            renderCharts(data);
+            renderTable(data);
+        } else {
+            const data = await fetchGoogleSheetsData();
+            renderCharts(data);
+            renderTable(data);
+        }
+    } catch (error) {
+        console.error('Error initializing dashboard:', error);
+        showError('Failed to load dashboard data: ' + error.message);
+    }
+});
+
+// Initialize date filter controls after DOM loads
+document.addEventListener('DOMContentLoaded', () => {
+    initDateFilterControls();
+});
+
+function initDateFilterControls() {
+    const filterSelect = document.getElementById('dateFilterSelect');
+    const customDateRange = document.getElementById('customDateRange');
+    const customDateRangeEnd = document.getElementById('customDateRangeEnd');
+    const applyFilterBtn = document.getElementById('applyFilterBtn');
+    const startDateInput = document.getElementById('startDateInput');
+    const endDateInput = document.getElementById('endDateInput');
+
+    if (filterSelect) {
+        filterSelect.addEventListener('change', (e) => {
+            const value = e.target.value;
+            
+            if (value === 'custom') {
+                customDateRange.classList.remove('hidden');
+                customDateRangeEnd.classList.remove('hidden');
+            } else {
+                customDateRange.classList.add('hidden');
+                customDateRangeEnd.classList.add('hidden');
+                applyDateFilter(value);
+            }
+        });
+    }
+
+    if (applyFilterBtn) {
+        applyFilterBtn.addEventListener('click', () => {
+            const filterType = filterSelect.value;
+            if (filterType === 'custom') {
+                const startDate = startDateInput.value ? new Date(startDateInput.value) : null;
+                const endDate = endDateInput.value ? new Date(endDateInput.value) : null;
+                applyCustomDateFilter(startDate, endDate);
+            }
+        });
+    }
+}
+
+function applyDateFilter(filterType) {
+    const now = new Date();
+    let startDate, endDate;
+    
+    switch (filterType) {
+        case 'from-2025-04-01':
+            startDate = new Date('2025-04-01');
+            endDate = null;
+            break;
+        case 'this-month':
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            break;
+        case 'last-month':
+            startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+            break;
+        case 'this-quarter':
+            const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+            startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
+            endDate = new Date(now.getFullYear(), quarterStartMonth + 3, 0);
+            break;
+        case 'last-quarter':
+            const lastQuarterStartMonth = Math.floor((now.getMonth() - 3) / 3) * 3;
+            startDate = new Date(now.getFullYear(), lastQuarterStartMonth, 1);
+            endDate = new Date(now.getFullYear(), lastQuarterStartMonth + 3, 0);
+            break;
+        case 'this-year':
+            startDate = new Date(now.getFullYear(), 0, 1);
+            endDate = new Date(now.getFullYear(), 11, 31);
+            break;
+        default:
+            startDate = new Date('2025-04-01');
+            endDate = null;
+    }
+    
+    currentDateFilter = { startDate, endDate, filterType };
+    console.log('Applied date filter:', currentDateFilter);
+    
+    // Re-render with new filter
+    if (window.currentData) {
+        renderCharts(window.currentData);
+        renderTable(window.currentData);
+    }
+}
+
+function applyCustomDateFilter(startDate, endDate) {
+    if (!startDate) {
+        alert('Please select a start date');
+        return;
+    }
+    
+    currentDateFilter = { 
+        startDate, 
+        endDate: endDate || null, 
+        filterType: 'custom' 
+    };
+    console.log('Applied custom date filter:', currentDateFilter);
+    
+    // Re-render with new filter
+    if (window.currentData) {
+        renderCharts(window.currentData);
+        renderTable(window.currentData);
+    }
+}
+
+// Show configuration warning
+function showConfigWarning() {
+    const warning = document.createElement('div');
+    warning.className = 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4';
+    warning.innerHTML = `
+        <p class="font-bold">Configuration Required</p>
+        <p class="text-sm">You're viewing mock data. To connect to your Google Sheet:</p>
+        <p class="text-sm font-semibold mt-2">🚀 Quick Start (2 minutes):</p>
+        <ol class="text-sm list-decimal ml-4 mt-1">
+            <li>Open your Google Sheet → File → Share → Publish to web</li>
+            <li>Choose "Comma-separated values (.csv)" and click Publish</li>
+            <li>Copy the URL and paste it into <code>CONFIG.CSV_URL</code> in app.js</li>
+        </ol>
+        <p class="text-sm mt-2">📖 See <code>SIMPLE_SETUP.md</code> for detailed instructions</p>
+    `;
+    document.querySelector('.container').insertBefore(warning, document.querySelector('header').nextSibling);
+}
+
+// Show error message
+function showError(message) {
+    const error = document.createElement('div');
+    error.className = 'bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4';
+    error.innerHTML = `
+        <p class="font-bold">Error</p>
+        <p class="text-sm">${message}</p>
+        <p class="text-sm mt-2">Check the browser console for more details.</p>
+    `;
+    document.querySelector('.container').insertBefore(error, document.querySelector('header').nextSibling);
+}
+
+// Helpers to parse Google Sheets cell values
+function parseSheetNumber(value) {
+    console.log('parseSheetNumber input:', value, 'type:', typeof value);
+    if (value === null || value === undefined || value === '') return 0;
+    if (typeof value === 'number') return value;
+    let s = String(value).trim();
+    let multiplier = 1;
+    const suffixMatch = s.match(/([mk])$/i);
+    if (suffixMatch) {
+        const suf = suffixMatch[1].toLowerCase();
+        if (suf === 'm') multiplier = 1e6;
+        if (suf === 'k') multiplier = 1e3;
+        s = s.slice(0, -1);
+    }
+    s = s.replace(/[$,]/g, '');
+    const n = parseFloat(s);
+    const result = isNaN(n) ? 0 : n * multiplier;
+    console.log('Parsed number', value, 'to', result);
+    return result;
+}
+
+function parseSheetDate(value) {
+    console.log('parseSheetDate input:', value, 'type:', typeof value);
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') {
+        // Google Sheets serial number -> JS Date (days since 1899-12-30)
+        const ms = (value - 25569) * 86400000;
+        const date = new Date(ms);
+        console.log('Parsed serial number', value, 'to date:', date);
+        return date;
+    }
+    const d = new Date(String(value));
+    console.log('Parsed string', value, 'to date:', d);
+    return isNaN(d.getTime()) ? null : d;
+}
+
+// Initialize OAuth 2.0
+async function initOAuth() {
+    console.log('Loading Google API...');
+    try {
+        // Load the Google API client library
+        await loadGoogleAPI();
+        console.log('Google API loaded successfully');
+        
+        // Create a sign-in button
+        const signInButton = document.createElement('button');
+        signInButton.textContent = '🔐 Sign in with Google to view your Payment Opps data';
+        signInButton.className = 'bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg mb-6 shadow-lg transition duration-200';
+        signInButton.onclick = handleAuthClick;
+        
+        const container = document.querySelector('.container');
+        const header = document.querySelector('header');
+        
+        // Add info message
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'bg-blue-50 border-l-4 border-blue-500 text-blue-700 p-4 mb-4';
+        infoDiv.innerHTML = `
+            <p class="font-bold">🔒 Authentication Required</p>
+            <p class=\"text-sm mt-1\">Click the button below to sign in with your Google account and access your PaymentOpps sheet.</p>
+            <p class="text-xs mt-2 text-gray-600">Spreadsheet ID: ${CONFIG.SPREADSHEET_ID}</p>
+        `;
+        
+        container.insertBefore(infoDiv, header.nextSibling);
+        container.insertBefore(signInButton, header.nextSibling.nextSibling);
+    } catch (error) {
+        console.error('Failed to initialize OAuth:', error);
+        showError('Failed to initialize Google authentication: ' + error.message);
+    }
+}
+
+// Load Google API
+function loadGoogleAPI() {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://apis.google.com/js/api.js';
+        script.onload = () => {
+            gapi.load('client', async () => {
+                try {
+                    // Initialize without API key for OAuth flow
+                    await gapi.client.init({
+                        discoveryDocs: CONFIG.DISCOVERY_DOCS,
+                    });
+                    gapiInited = true;
+                    console.log('Google API client initialized successfully');
+                    resolve();
+                } catch (error) {
+                    console.error('Error initializing Google API client:', error);
+                    reject(error);
+                }
+            });
+        };
+        script.onerror = (error) => {
+            console.error('Error loading Google API script:', error);
+            reject(error);
+        };
+        document.head.appendChild(script);
+    });
+}
+
+// Handle authentication
+async function handleAuthClick() {
+    console.log('Auth button clicked');
+    
+    // Prevent multiple clicks
+    if (isLoadingData || dataLoaded) {
+        console.log('Already authenticated or loading, ignoring click');
+        return;
+    }
+    
+    try {
+        if (!tokenClient) {
+            console.log('Creating token client...');
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CONFIG.CLIENT_ID,
+                scope: CONFIG.SCOPES,
+                prompt: '', // Don't show consent screen if already granted
+                callback: async (response) => {
+                    console.log('OAuth callback received:', response);
+                    
+                    // Prevent multiple loads - if data already loaded, ignore
+                    if (dataLoaded) {
+                        console.log('Data already loaded, ignoring callback');
+                        return;
+                    }
+                    
+                    // Prevent multiple simultaneous loads
+                    if (isLoadingData) {
+                        console.log('Already loading data, skipping duplicate callback');
+                        return;
+                    }
+                    
+                    if (response.error) {
+                        console.error('Auth error:', response.error);
+                        showError('Authentication failed: ' + response.error);
+                        return;
+                    }
+                    
+                    isLoadingData = true;
+                    console.log('Authentication successful, fetching data...');
+                    
+                    try {
+                        const data = await fetchGoogleSheetsDataOAuth();
+                        console.log('Data fetched:', data);
+                        
+                        // Remove sign-in UI
+                        const signInButton = document.querySelector('button');
+                        const infoDiv = document.querySelector('.bg-blue-50');
+                        if (signInButton) signInButton.remove();
+                        if (infoDiv) infoDiv.remove();
+                        
+                        // Store data globally for filtering
+                        window.currentData = data;
+                        
+                        renderCharts(data);
+                        renderTable(data);
+                        
+                        dataLoaded = true; // Mark as loaded
+                        console.log('Dashboard loaded successfully');
+                    } catch (error) {
+                        console.error('Error fetching data:', error);
+                        showError('Failed to fetch data: ' + error.message);
+                    } finally {
+                        isLoadingData = false;
+                    }
+                },
+            });
+        }
+        
+        // Disable the button immediately
+        const signInButton = document.querySelector('button');
+        if (signInButton) {
+            signInButton.disabled = true;
+            signInButton.textContent = '⏳ Authenticating...';
+            signInButton.className = 'bg-gray-400 text-white font-bold py-3 px-6 rounded-lg mb-6 shadow-lg cursor-not-allowed';
+        }
+        
+        console.log('Requesting access token...');
+        tokenClient.requestAccessToken();
+    } catch (error) {
+        console.error('Error in handleAuthClick:', error);
+        showError('Authentication error: ' + error.message);
+        isLoadingData = false;
+    }
+}
+
+// Fetch data using OAuth
+async function fetchGoogleSheetsDataOAuth() {
+    console.log('Fetching from spreadsheet:', CONFIG.SPREADSHEET_ID);
+    console.log('Sheet name:', CONFIG.SHEET_NAME);
+    console.log('Range:', CONFIG.RANGE);
+    
+    try {
+        // Load the Sheets API if not already loaded
+        if (!gapi.client.sheets) {
+            console.log('Loading Sheets API...');
+            await gapi.client.load('sheets', 'v4');
+            console.log('Sheets API loaded');
+        }
+        
+        // Try different range formats
+        let response;
+        let sheetRange;
+        
+        // First try: Use gid (sheet ID) - most reliable
+        try {
+            sheetRange = `PaymentOpps!${CONFIG.RANGE}`;
+            console.log('Trying with PaymentOpps sheet:', sheetRange);
+            response = await gapi.client.sheets.spreadsheets.values.get({
+                spreadsheetId: CONFIG.SPREADSHEET_ID,
+                range: sheetRange,
+                valueRenderOption: 'UNFORMATTED_VALUE',
+                dateTimeRenderOption: 'SERIAL_NUMBER',
+            });
+        } catch (err1) {
+            console.log('Sheet name failed, trying gid approach...');
+            // Second try: Use gid directly
+            try {
+                sheetRange = `${CONFIG.SHEET_GID}!${CONFIG.RANGE}`;
+                console.log('Trying with gid:', sheetRange);
+                response = await gapi.client.sheets.spreadsheets.values.get({
+                    spreadsheetId: CONFIG.SPREADSHEET_ID,
+                    range: sheetRange,
+                    valueRenderOption: 'UNFORMATTED_VALUE',
+                    dateTimeRenderOption: 'SERIAL_NUMBER',
+                });
+            } catch (err2) {
+                console.log('Gid failed, trying just range...');
+                // Third try: Just the range (first sheet)
+                sheetRange = CONFIG.RANGE;
+                console.log('Trying just range:', sheetRange);
+                response = await gapi.client.sheets.spreadsheets.values.get({
+                    spreadsheetId: CONFIG.SPREADSHEET_ID,
+                    range: sheetRange,
+                    valueRenderOption: 'UNFORMATTED_VALUE',
+                    dateTimeRenderOption: 'SERIAL_NUMBER',
+                });
+            }
+        }
+        
+        console.log('Raw response:', response);
+        console.log('Values:', response.result.values);
+        
+        const rows = response.result.values || [];
+        if (rows.length <= 1) {
+            throw new Error('No data rows found in the spreadsheet');
+        }
+        
+        // Drop header row; keep only data rows
+        const dataRows = rows.slice(1);
+        
+        // Debug: Log first few rows to see raw data structure
+        console.log('First 3 data rows (raw from API):', dataRows.slice(0, 3));
+        console.log('Column H (index 7) values:', dataRows.slice(0, 5).map(r => r[7]));
+        console.log('Column J (index 9) values:', dataRows.slice(0, 5).map(r => r[9]));
+        
+        return dataRows;
+    } catch (error) {
+        console.error('Error in fetchGoogleSheetsDataOAuth:', error);
+        throw new Error(`Failed to fetch spreadsheet data: ${error.message}`);
+    }
+}
+
+// Fetch data from published Google Sheets CSV (simplest method)
+async function fetchCSVData() {
+    const response = await fetch(CONFIG.CSV_URL);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch CSV: ${response.statusText}`);
+    }
+    
+    const csvText = await response.text();
+    return parseCSV(csvText);
+}
+
+// Parse CSV text into structured data
+function parseCSV(csvText) {
+    const lines = csvText.trim().split('\n');
+    if (lines.length < 2) return [];
+    
+    // Parse headers
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    
+    // Parse data rows
+    return lines.slice(1).map(line => {
+        const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+        const entry = {};
+        headers.forEach((header, index) => {
+            entry[header.toLowerCase().replace(/\s+/g, '_')] = values[index] || '';
+        });
+        return entry;
+    });
+}
+
+// Fetch data from Google Sheets using API Key
+async function fetchGoogleSheetsData() {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${CONFIG.SHEET_NAME}!${CONFIG.RANGE}?key=${CONFIG.API_KEY}`;
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Google Sheets API error: ${response.statusText}. ${errorData.error?.message || ''}`);
+    }
+    
+    const data = await response.json();
+    return processSheetData(data.values);
+}
+
+// Process raw sheet data into structured format
+function processSheetData(rows) {
+    if (!rows || rows.length < 2) return [];
+    
+    const headers = rows[0];
+    return rows.slice(1).map(row => {
+        const entry = {};
+        headers.forEach((header, index) => {
+            entry[header.toLowerCase().replace(/\s+/g, '_')] = row[index] || '';
+        });
+        return entry;
+    });
+}
+
+// Show metrics summary
+function showMetricsSummary(metrics) {
+    const container = document.querySelector('.container');
+    const header = document.querySelector('header');
+    
+    // Remove existing summary if any
+    const existing = document.getElementById('metrics-summary');
+    if (existing) existing.remove();
+    
+    const summaryDiv = document.createElement('div');
+    summaryDiv.id = 'metrics-summary';
+    summaryDiv.className = 'grid grid-cols-1 md:grid-cols-3 gap-4 mb-8';
+    
+    // Format the current filter range for display
+    const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    const startDisplay = formatDate(currentDateFilter.startDate);
+    const endDisplay = currentDateFilter.endDate ? formatDate(currentDateFilter.endDate) : 'present';
+    const rangeText = `${startDisplay} - ${endDisplay}`;
+    
+    summaryDiv.innerHTML = `
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-sm font-semibold text-gray-600 uppercase">Avg Deal Size (${rangeText})</h3>
+            <p class="text-3xl font-bold text-blue-600 mt-2">$${metrics.avgDealSize.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+            <p class="text-sm text-gray-500 mt-1">${metrics.dealCount} closed won deals by team</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-sm font-semibold text-gray-600 uppercase">Total GPV (${rangeText})</h3>
+            <p class="text-3xl font-bold text-green-600 mt-2">$${metrics.totalGPV.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+            <p class="text-sm text-gray-500 mt-1">${metrics.totalOpportunities} total opportunities</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-sm font-semibold text-gray-600 uppercase">Team Win Rate</h3>
+            <p class="text-3xl font-bold text-purple-600 mt-2">${metrics.winRate.toFixed(1)}%</p>
+            <p class="text-sm text-gray-500 mt-1">Avg deal age: ${Math.round(metrics.avgDealAge)} days</p>
+        </div>
+    `;
+    
+    // Insert after header
+    const nextElement = header.nextSibling;
+    container.insertBefore(summaryDiv, nextElement);
+}
+
+// Calculate metrics from Payment Opps data
+function calculateMetrics(data) {
+    console.log('Calculating metrics from data:', data);
+    
+    // Use current date filter instead of hardcoded dates
+    const startDate = currentDateFilter.startDate;
+    const endDate = currentDateFilter.endDate;
+    
+    // Filter for deals within date range AND Closed Won (Column E) AND Allowed Owners (Column A)
+    const filteredDeals = data.filter(row => {
+        const dealDate = parseSheetDate(row[7]); // Column H
+        if (!dealDate) return false;
+        
+        // Check if deal is within date range
+        const afterStart = dealDate >= startDate;
+        const beforeEnd = !endDate || dealDate <= endDate;
+        
+        const isClosedWon = String(row[4]).toLowerCase().trim() === 'closed won'; // Column E
+        const owner = String(row[0]).trim(); // Column A
+        const isAllowedOwner = ALLOWED_OWNERS.includes(owner);
+        
+        return afterStart && beforeEnd && isClosedWon && isAllowedOwner;
+    });
+    
+    console.log('Filtered deals:', filteredDeals.length, 'using filter:', currentDateFilter);
+    console.log('Allowed owners:', ALLOWED_OWNERS);
+    console.log('Sample filtered deals (first 3):', filteredDeals.slice(0, 3).map(row => ({
+        owner: row[0],
+        stage: row[4],
+        gpv: parseSheetNumber(row[9]),
+        date: parseSheetDate(row[7])
+    })));
+    
+    // Calculate average deal size from Column J (Estimated GPV)
+    const gpvValues = filteredDeals
+        .map(row => parseSheetNumber(row[9])) // Column J is index 9
+        .filter(val => val > 0);
+    
+    const avgDealSize = gpvValues.length > 0 
+        ? gpvValues.reduce((a, b) => a + b, 0) / gpvValues.length 
+        : 0;
+    
+    const totalGPV = gpvValues.reduce((a, b) => a + b, 0);
+    const dealCount = gpvValues.length;
+    
+    console.log('Metrics:', { avgDealSize, totalGPV, dealCount });
+    
+    // Calculate additional metrics
+    const totalOpportunities = data.length;
+    const winRate = totalOpportunities > 0 ? (dealCount / totalOpportunities) * 100 : 0;
+    const avgDealAge = gpvValues.length > 0 ? 
+        filteredDeals.reduce((sum, row) => sum + (parseInt(row[6]) || 0), 0) / gpvValues.length : 0;
+
+    console.log('Additional metrics:', { totalOpportunities, winRate, avgDealAge });
+
+    return {
+        avgDealSize,
+        totalGPV,
+        dealCount,
+        thisMonthDeals: filteredDeals,
+        allDeals: data,
+        totalOpportunities,
+        winRate,
+        avgDealAge
+    };
+}
+
+// Render all charts
+function renderCharts(data) {
+    console.log('Rendering charts with data:', data);
+    
+    // Destroy existing charts to prevent duplicates
+    if (volumeChart) {
+        volumeChart.destroy();
+        volumeChart = null;
+    }
+    if (paymentMethodsChart) {
+        paymentMethodsChart.destroy();
+        paymentMethodsChart = null;
+    }
+    if (successRateChart) {
+        successRateChart.destroy();
+        successRateChart = null;
+    }
+    if (revenueByRegionChart) {
+        revenueByRegionChart.destroy();
+        revenueByRegionChart = null;
+    }
+    // Destroy new charts
+    if (ownerPerformanceChart) {
+        ownerPerformanceChart.destroy();
+        ownerPerformanceChart = null;
+    }
+    if (winRateChart) {
+        winRateChart.destroy();
+        winRateChart = null;
+    }
+    if (sourceChart) {
+        sourceChart.destroy();
+        sourceChart = null;
+    }
+    if (ageChart) {
+        ageChart.destroy();
+        ageChart = null;
+    }
+    if (processorChart) {
+        processorChart.destroy();
+        processorChart = null;
+    }
+    if (segmentChart) {
+        segmentChart.destroy();
+        segmentChart = null;
+    }
+    
+    // Calculate metrics (this already filters for Closed Won deals)
+    const metrics = calculateMetrics(data);
+    
+    // Show metrics summary at top
+    showMetricsSummary(metrics);
+    
+    // Filter data for Closed Won deals within current date range
+    const startDate = currentDateFilter.startDate;
+    const endDate = currentDateFilter.endDate;
+    
+    const closedWonDeals = data.filter(row => {
+        const dealDate = parseSheetDate(row[7]); // Column H
+        if (!dealDate) return false;
+        const afterStart = dealDate >= startDate;
+        const beforeEnd = !endDate || dealDate <= endDate;
+        const isClosedWon = String(row[4]).toLowerCase().trim() === 'closed won'; // Column E
+        const owner = String(row[0]).trim(); // Column A
+        const isAllowedOwner = ALLOWED_OWNERS.includes(owner);
+        return afterStart && beforeEnd && isClosedWon && isAllowedOwner;
+    });
+    
+    console.log('Charts will use only Closed Won deals:', closedWonDeals.length, 'deals');
+    
+    // Group closed won deals by month for trend analysis
+    const dealsByMonth = {};
+    closedWonDeals.forEach(row => {
+        const closeDate = row[7]; // Column H
+        if (closeDate) {
+            const date = parseSheetDate(closeDate);
+            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            if (!dealsByMonth[monthKey]) {
+                dealsByMonth[monthKey] = [];
+            }
+            dealsByMonth[monthKey].push(parseSheetNumber(row[9]) || 0); // Column J - GPV
+        }
+    });
+    const monthLabels = Object.keys(dealsByMonth).sort((a, b) => {
+        const [yearA, monthA] = a.split('-').map(Number);
+        const [yearB, monthB] = b.split('-').map(Number);
+        if (yearA !== yearB) return yearA - yearB;
+        return monthA - monthB;
+    });
+    const monthlyTotals = monthLabels.map(month => 
+        dealsByMonth[month].reduce((a, b) => a + b, 0)
+    );
+    
+    // Volume Chart - Monthly GPV Trend
+    const volumeCanvas = document.getElementById('volumeChart');
+    if (volumeCanvas) {
+        const volumeCtx = volumeCanvas.getContext('2d');
+        volumeChart = new Chart(volumeCtx, {
+        type: 'line',
+        data: {
+            labels: monthLabels.map(m => {
+                const [year, month] = m.split('-');
+                return new Date(year, month - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            }),
+            datasets: [{
+                label: 'Monthly GPV',
+                data: monthlyTotals,
+                borderColor: 'rgba(79, 70, 229, 1)',
+                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            resizeDelay: 200,
+            plugins: {
+                legend: { display: true },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            return 'GPV: $' + context.parsed.y.toLocaleString();
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { display: true },
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value.toLocaleString();
+                        }
+                    }
+                },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+    }
+
+    // Deal Size Distribution Chart (using closed won deals)
+    const dealSizes = closedWonDeals.map(row => parseSheetNumber(row[9])).filter(v => v > 0);
+    const ranges = [
+        { label: '< $10K', min: 0, max: 10000 },
+        { label: '$10K-$50K', min: 10000, max: 50000 },
+        { label: '$50K-$100K', min: 50000, max: 100000 },
+        { label: '$100K+', min: 100000, max: Infinity }
+    ];
+    const rangeCounts = ranges.map(range => 
+        dealSizes.filter(size => size >= range.min && size < range.max).length
+    );
+    
+    const paymentMethodsCanvas = document.getElementById('paymentMethodsChart');
+    if (paymentMethodsCanvas) {
+        const paymentMethodsCtx = paymentMethodsCanvas.getContext('2d');
+        paymentMethodsChart = new Chart(paymentMethodsCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ranges.map(r => r.label),
+            datasets: [{
+                data: rangeCounts,
+                backgroundColor: [
+                    'rgba(79, 70, 229, 0.8)',
+                    'rgba(99, 102, 241, 0.8)',
+                    'rgba(129, 140, 248, 0.8)',
+                    'rgba(199, 210, 254, 0.8)'
+                ],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            resizeDelay: 200,
+            plugins: {
+                legend: { position: 'right' },
+                title: { display: true, text: 'Deal Size Distribution' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.raw || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = Math.round((value / total) * 100);
+                            return `${label}: ${value} deals (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            cutout: '70%'
+        }
+    });
+    }
+
+    // Monthly Deal Count Chart
+    const monthlyDealCounts = monthLabels.map(month => dealsByMonth[month].length);
+    
+    const successRateCanvas = document.getElementById('successRateChart');
+    if (successRateCanvas) {
+        const successRateCtx = successRateCanvas.getContext('2d');
+        successRateChart = new Chart(successRateCtx, {
+        type: 'bar',
+        data: {
+            labels: monthLabels.map(m => {
+                const [year, month] = m.split('-');
+                return new Date(year, month - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            }),
+            datasets: [{
+                label: 'Deals Closed',
+                data: monthlyDealCounts,
+                backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                borderColor: 'rgba(16, 185, 129, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            resizeDelay: 200,
+            plugins: {
+                legend: { display: true },
+                title: { display: true, text: 'Monthly Deal Count' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Deals: ${context.raw}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+    }
+
+    // Average Deal Size by Month Chart
+    if (revenueByRegionCanvas) {
+        const revenueByRegionCtx = revenueByRegionCanvas.getContext('2d');
+        revenueByRegionChart = new Chart(revenueByRegionCtx, {
+        type: 'bar',
+        data: {
+            labels: monthLabels.map(m => {
+                const [year, month] = m.split('-');
+                return new Date(year, month - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            }),
+            datasets: [{
+                label: 'Avg Deal Size',
+                data: monthlyAvgDealSize,
+                backgroundColor: 'rgba(167, 139, 250, 0.8)',
+                borderColor: 'rgba(167, 139, 250, 1)',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            resizeDelay: 200,
+            plugins: {
+                legend: { display: true },
+                title: { display: true, text: 'Average Deal Size by Month' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Avg: $${context.raw.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { display: true },
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value.toLocaleString();
+                        }
+                    }
+                },
+                x: { 
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+
+    // Performance by Opportunity Owner Chart
+    const ownerPerformance = {};
+    closedWonDeals.forEach(row => {
+        const owner = row[0] || 'Unknown'; // Column A
+        const gpv = parseSheetNumber(row[9]); // Column J
+        if (!ownerPerformance[owner]) {
+            ownerPerformance[owner] = { gpv: 0, deals: 0 };
+        }
+        ownerPerformance[owner].gpv += gpv;
+        ownerPerformance[owner].deals += 1;
+    });
+
+    const ownerLabels = Object.keys(ownerPerformance).sort();
+    const ownerGPV = ownerLabels.map(owner => ownerPerformance[owner].gpv);
+    const ownerDeals = ownerLabels.map(owner => ownerPerformance[owner].deals);
+
+    const ownerPerformanceCanvas = document.getElementById('ownerPerformanceChart');
+    if (ownerPerformanceCanvas) {
+        const ownerPerformanceCtx = ownerPerformanceCanvas.getContext('2d');
+        ownerPerformanceChart = new Chart(ownerPerformanceCtx, {
+        type: 'bar',
+        data: {
+            labels: ownerLabels,
+            datasets: [{
+                label: 'Total GPV',
+                data: ownerGPV,
+                backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                borderColor: 'rgba(34, 197, 94, 1)',
+                borderWidth: 1,
+                yAxisID: 'y'
+            }, {
+                label: 'Deal Count',
+                data: ownerDeals,
+                backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                borderColor: 'rgba(59, 130, 246, 1)',
+                borderWidth: 1,
+                yAxisID: 'y1'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            resizeDelay: 200,
+            plugins: {
+                legend: { display: true },
+                title: { display: true, text: 'Performance by Opportunity Owner' }
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value.toLocaleString();
+                        }
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    grid: { drawOnChartArea: false }
+                }
+            }
+        }
+    });
+
+    // Win Rate by Opportunity Owner Chart
+    const winRates = {};
+    data.forEach(row => {
+        const owner = row[0] || 'Unknown'; // Column A
+        const stage = String(row[4]).toLowerCase().trim(); // Column E
+        
+        if (!winRates[owner]) {
+            winRates[owner] = { total: 0, won: 0 };
+        }
+        winRates[owner].total += 1;
+        if (stage === 'closed won') {
+            winRates[owner].won += 1;
+        }
+    });
+
+    const winRateLabels = Object.keys(winRates).filter(owner => winRates[owner].total >= 3); // Only show owners with 3+ deals
+    const winRateData = winRateLabels.map(owner => {
+        const rate = (winRates[owner].won / winRates[owner].total) * 100;
+        return rate;
+    });
+
+    const winRateCanvas = document.getElementById('winRateChart');
+    if (winRateCanvas) {
+        const winRateCtx = winRateCanvas.getContext('2d');
+        winRateChart = new Chart(winRateCtx, {
+        type: 'bar',
+        data: {
+            labels: winRateLabels,
+            datasets: [{
+                label: 'Win Rate (%)',
+                data: winRateData,
+                backgroundColor: 'rgba(251, 191, 36, 0.8)',
+                borderColor: 'rgba(251, 191, 36, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            resizeDelay: 200,
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: 'Win Rate by Opportunity Owner' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const owner = context.label;
+                            const stats = winRates[owner];
+                            return `${context.raw.toFixed(1)}% (${stats.won}/${stats.total} deals)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: { callback: value => value + '%' }
+                }
+            }
+        }
+    });
+
+    // Opportunity Sub-Source Analysis Chart
+    const sourceStats = {};
+    data.forEach(row => {
+        const subSource = row[12] || 'Implementation'; // Column M - Opportunity Sub-Source, default to Implementation if blank
+        const stage = String(row[4]).toLowerCase().trim(); // Column E
+        
+        if (!sourceStats[subSource]) {
+            sourceStats[subSource] = { total: 0, won: 0 };
+        }
+        sourceStats[subSource].total += 1;
+        if (stage === 'closed won') {
+            sourceStats[subSource].won += 1;
+        }
+    });
+
+    const sourceLabels = Object.keys(sourceStats).sort();
+    const sourceData = sourceLabels.map(source => sourceStats[source].total);
+
+    const sourceCanvas = document.getElementById('sourceChart');
+    if (sourceCanvas) {
+        const sourceCtx = sourceCanvas.getContext('2d');
+        sourceChart = new Chart(sourceCtx, {
+        type: 'doughnut',
+        data: {
+            labels: sourceLabels,
+            datasets: [{
+                data: sourceData,
+                backgroundColor: [
+                    'rgba(59, 130, 246, 0.8)',
+                    'rgba(16, 185, 129, 0.8)',
+                    'rgba(245, 158, 11, 0.8)',
+                    'rgba(239, 68, 68, 0.8)',
+                    'rgba(168, 85, 247, 0.8)',
+                    'rgba(236, 72, 153, 0.8)',
+                    'rgba(34, 197, 94, 0.8)',
+                    'rgba(251, 191, 36, 0.8)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            resizeDelay: 200,
+            plugins: {
+                legend: { position: 'right' },
+                title: { display: true, text: 'Opportunity Sub-Source Distribution' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const percentage = Math.round((context.raw / context.dataset.data.reduce((a, b) => a + b, 0)) * 100);
+                            return `${context.label}: ${context.raw} opportunities (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            cutout: '60%'
+        }
+    });
+
+    // Deal Age Distribution Chart
+    const ageRanges = [
+        { label: '< 30 days', min: 0, max: 30 },
+        { label: '30-60 days', min: 30, max: 60 },
+        { label: '60-90 days', min: 60, max: 90 },
+        { label: '90-180 days', min: 90, max: 180 },
+        { label: '> 180 days', min: 180, max: Infinity }
+    ];
+    
+    const ageCounts = ageRanges.map(range => {
+        return closedWonDeals.filter(row => {
+            const age = parseInt(row[6]) || 0; // Column G
+            return age >= range.min && age < range.max;
+        }).length;
+    });
+
+    const ageCanvas = document.getElementById('ageChart');
+    if (ageCanvas) {
+        const ageCtx = ageCanvas.getContext('2d');
+        ageChart = new Chart(ageCtx, {
+        type: 'bar',
+        data: {
+            labels: ageRanges.map(r => r.label),
+            datasets: [{
+                label: 'Deals Won',
+                data: ageCounts,
+                backgroundColor: 'rgba(139, 69, 19, 0.8)',
+                borderColor: 'rgba(139, 69, 19, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            resizeDelay: 200,
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: 'Deal Age Distribution' }
+            },
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
+        }
+    });
+
+    // Payment Processor Usage Chart
+    const processorStats = {};
+    data.forEach(row => {
+        const processor = row[16] || 'Unknown'; // Column Q
+        if (!processorStats[processor]) {
+            processorStats[processor] = 0;
+        }
+        processorStats[processor] += 1;
+    });
+
+    const processorLabels = Object.keys(processorStats).sort();
+    const processorData = processorLabels.map(proc => processorStats[proc]);
+
+    const processorCanvas = document.getElementById('processorChart');
+    if (processorCanvas) {
+        const processorCtx = processorCanvas.getContext('2d');
+        processorChart = new Chart(processorCtx, {
+        type: 'doughnut',
+        data: {
+            labels: processorLabels,
+            datasets: [{
+                data: processorData,
+                backgroundColor: [
+                    'rgba(99, 102, 241, 0.8)',
+                    'rgba(168, 85, 247, 0.8)',
+                    'rgba(236, 72, 153, 0.8)',
+                    'rgba(251, 146, 60, 0.8)',
+                    'rgba(34, 197, 94, 0.8)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            resizeDelay: 200,
+            plugins: {
+                legend: { position: 'right' },
+                title: { display: true, text: 'Current Payment Processor Usage' }
+            },
+            cutout: '60%'
+        }
+    });
+
+    // GPV Segment Distribution Chart
+    const segmentStats = {};
+    data.forEach(row => {
+        const segment = row[18] || 'Unknown'; // Column S
+        if (!segmentStats[segment]) {
+            segmentStats[segment] = 0;
+        }
+        segmentStats[segment] += 1;
+    });
+
+    const segmentLabels = Object.keys(segmentStats).sort();
+    const segmentData = segmentLabels.map(seg => segmentStats[seg]);
+
+    const segmentCanvas = document.getElementById('segmentChart');
+    if (segmentCanvas) {
+        const segmentCtx = segmentCanvas.getContext('2d');
+        segmentChart = new Chart(segmentCtx, {
+        type: 'pie',
+        data: {
+            labels: segmentLabels,
+            datasets: [{
+                data: segmentData,
+                backgroundColor: [
+                    'rgba(59, 130, 246, 0.8)',
+                    'rgba(16, 185, 129, 0.8)',
+                    'rgba(251, 146, 60, 0.8)',
+                    'rgba(239, 68, 68, 0.8)',
+                    'rgba(168, 85, 247, 0.8)',
+                    'rgba(236, 72, 153, 0.8)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            resizeDelay: 200,
+            plugins: {
+                legend: { position: 'right' },
+                title: { display: true, text: 'GPV Segment Distribution' }
+            }
+        }
+    });
+}
+
+// Render data table
+function renderTable(data) {
+    console.log('Rendering table with data:', data);
+    const tableBody = document.getElementById('tableBody');
+    if (!tableBody) return;
+
+    // Update table header with current date range
+    const tableDateRange = document.getElementById('table-date-range');
+    if (tableDateRange) {
+        const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        const startDisplay = formatDate(currentDateFilter.startDate);
+        const endDisplay = currentDateFilter.endDate ? formatDate(currentDateFilter.endDate) : 'present';
+        tableDateRange.textContent = `Showing top closed won deals from ${startDisplay} to ${endDisplay}`;
+    }
+
+    // Clear existing rows
+    tableBody.innerHTML = '';
+    
+    // Format currency
+    const formatCurrency = (value) => {
+        const num = parseSheetNumber(value);
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(num);
+    };
+
+    // Filter for deals within current date range and sort by GPV
+    const startDate = currentDateFilter.startDate;
+    const endDate = currentDateFilter.endDate;
+    
+    const filteredDeals = data
+        .filter(row => {
+            const dealDate = parseSheetDate(row[7]); // Column H
+            if (!dealDate) return false;
+            const afterStart = dealDate >= startDate;
+            const beforeEnd = !endDate || dealDate <= endDate;
+            const isClosedWon = String(row[4]).toLowerCase().trim() === 'closed won'; // Column E
+            const owner = String(row[0]).trim(); // Column A
+            const isAllowedOwner = ALLOWED_OWNERS.includes(owner);
+            return afterStart && beforeEnd && isClosedWon && isAllowedOwner;
+        })
+        .sort((a, b) => parseSheetNumber(b[9]) - parseSheetNumber(a[9])) // Sort by GPV desc
+        .slice(0, 15); // Show top 15
+
+    // Add rows with data
+    filteredDeals.forEach((row, index) => {
+        const tr = document.createElement('tr');
+        tr.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+        
+        const oppName = row[0] || 'N/A'; // Column A - Opportunity Name
+        const d = parseSheetDate(row[7]); // Column H
+        const closeDate = d ? d.toLocaleDateString() : 'N/A';
+        const gpv = formatCurrency(row[9]); // Column J
+        const stage = row[5] || 'N/A'; // Column F - Stage (adjust if needed)
+        
+        tr.innerHTML = `
+            <td class="px-6 py-4 text-sm text-gray-900">${oppName}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${closeDate}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">${gpv}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${stage}</td>
+        `;
+        
+        tableBody.appendChild(tr);
+    });
+    
+    if (filteredDeals.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">
+                No closed won deals from 4/1/2025 forward
+            </td>
+        `;
+        tableBody.appendChild(tr);
+    }
+}
+
+// For development/testing without Google Sheets
+async function fetchMockData() {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Generate mock data
+    const mockData = [];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    for (let i = 0; i < 12; i++) {
+        const baseAmount = 10000 + Math.random() * 5000;
+        const successRate = 85 + Math.random() * 10;
+        
+        mockData.push({
+            date: `${months[i % 12]} 2023`,
+            volume: Math.round(baseAmount * (1 + i * 0.1)),
+            success_rate: successRate.toFixed(2),
+            avg_transaction: (50 + Math.random() * 20).toFixed(2)
+        });
+    }
+    
+    return mockData;
+}
+
+// Removed manual resize handler to avoid resize loops; Chart.js handles responsiveness internally.

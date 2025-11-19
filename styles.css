@@ -1,0 +1,264 @@
+/* Custom styles for the dashboard */
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    background: #F1F3F7;
+    min-height: 100vh;
+}
+
+.chart-container {
+    position: relative;
+    height: 360px;
+    min-height: 360px;
+    max-height: 360px;
+    width: 100%;
+    overflow: hidden;
+    contain: layout size paint;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+/* Ensure canvas never grows beyond container */
+.chart-container canvas {
+    display: block;
+    width: 100% !important;
+    box-sizing: border-box;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+}
+
+/* Glass card styling */
+.bg-white {
+    background: rgba(255, 255, 255, 0.85) !important;
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    transition: all 0.3s ease;
+}
+
+.bg-white:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 30px 0 rgba(31, 38, 135, 0.18);
+}
+
+/* Modern rounded corners */
+.rounded-lg {
+    border-radius: 20px !important;
+}
+
+/* Header styling */
+header {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+}
+
+/* Button styling */
+button {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-weight: 500;
+    letter-spacing: 0.025em;
+}
+
+button:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+/* Input styling */
+select, input[type="date"] {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+select:focus, input[type="date"]:focus {
+    background: rgba(255, 255, 255, 1);
+    border-color: #2B4BFF;
+    box-shadow: 0 0 0 3px rgba(43, 75, 255, 0.1);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #2B4BFF 0%, #0BE6C7 100%);
+    border-radius: 10px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #0BE6C7 0%, #2B4BFF 100%);
+}
+
+/* Table styles */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 16px 20px;
+    text-align: left;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+th {
+    background: linear-gradient(135deg, rgba(43, 75, 255, 0.1) 0%, rgba(11, 230, 199, 0.1) 100%);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    color: #2B4BFF;
+}
+
+tr {
+    transition: all 0.2s ease;
+}
+
+tr:hover {
+    background: linear-gradient(90deg, rgba(43, 75, 255, 0.03) 0%, rgba(11, 230, 199, 0.03) 100%);
+    transform: scale(1.002);
+}
+
+/* Card grid improvements */
+.grid {
+    gap: 1.5rem;
+}
+
+/* Metric cards enhancement */
+#metrics-summary .bg-white {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+#metrics-summary .bg-white::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #2B4BFF 0%, #0BE6C7 50%, #2B4BFF 100%);
+    animation: shimmer 3s linear infinite;
+    background-size: 200% 100%;
+}
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* Chart title styling */
+h2 {
+    background: linear-gradient(135deg, #2B4BFF 0%, #0BE6C7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Toggle button groups */
+.flex.bg-gray-100.rounded-lg {
+    background: rgba(255, 255, 255, 0.6) !important;
+    backdrop-filter: blur(10px);
+    padding: 0.35rem;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+/* Active button styling */
+.bg-blue-500 {
+    background: linear-gradient(135deg, #2B4BFF 0%, #0BE6C7 100%) !important;
+    box-shadow: 0 4px 12px rgba(43, 75, 255, 0.4);
+}
+
+/* Container improvements */
+.container {
+    max-width: 1400px;
+}
+
+/* Page load animations */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+header {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+.bg-white {
+    animation: fadeInUp 0.8s ease-out;
+    animation-fill-mode: both;
+}
+
+.bg-white:nth-child(1) { animation-delay: 0.1s; }
+.bg-white:nth-child(2) { animation-delay: 0.2s; }
+.bg-white:nth-child(3) { animation-delay: 0.3s; }
+.bg-white:nth-child(4) { animation-delay: 0.4s; }
+.bg-white:nth-child(5) { animation-delay: 0.5s; }
+.bg-white:nth-child(6) { animation-delay: 0.6s; }
+
+/* Glow effect on hover for cards */
+.bg-white::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(135deg, #2B4BFF, #0BE6C7, #2B4BFF);
+    border-radius: 20px;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.bg-white:hover::after {
+    opacity: 0.15;
+    filter: blur(8px);
+}
+
+.bg-white {
+    position: relative;
+    z-index: 1;
+}
+
+/* Loading state shimmer */
+@keyframes loading-shimmer {
+    0% {
+        background-position: -1000px 0;
+    }
+    100% {
+        background-position: 1000px 0;
+    }
+}
+
+.loading {
+    animation: loading-shimmer 2s infinite;
+    background: linear-gradient(90deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0.1) 100%);
+    background-size: 1000px 100%;
+}

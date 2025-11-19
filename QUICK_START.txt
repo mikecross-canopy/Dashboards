@@ -1,0 +1,96 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║          PAYMENT ANALYTICS DASHBOARD - QUICK START GUIDE             ║
+║                    (2 Minutes to Live Dashboard)                     ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+✅ STEP 1: CREATE YOUR GOOGLE SHEET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Go to Google Sheets (sheets.google.com)
+2. Create a new sheet
+3. Add headers in row 1: Date | Volume | Success Rate | Avg Transaction
+4. Add your data in rows below
+   Example:
+   Jan 2024 | 15000 | 95.5 | 75.50
+   Feb 2024 | 18000 | 96.2 | 80.25
+
+📋 See SAMPLE_DATA.md for a complete template you can copy/paste
+
+
+✅ STEP 2: PUBLISH YOUR SHEET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. In Google Sheets, click: File → Share → Publish to web
+2. In the dropdown, select: "Comma-separated values (.csv)"
+3. Click "Publish"
+4. Copy the URL (it will look like):
+   https://docs.google.com/spreadsheets/d/e/2PACX-1vT.../pub?output=csv
+
+
+✅ STEP 3: CONFIGURE THE DASHBOARD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Open app.js in a text editor
+2. Find line 5-10 (the CONFIG section)
+3. Replace YOUR_SHEET_ID with your actual CSV URL:
+
+   const CONFIG = {
+       AUTH_METHOD: 'csv',
+       CSV_URL: 'PASTE_YOUR_CSV_URL_HERE',
+       ...
+   };
+
+4. Save the file
+
+
+✅ STEP 4: OPEN YOUR DASHBOARD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Option A: Simple (may have limitations)
+   - Double-click index.html to open in browser
+
+Option B: Recommended (use a local server)
+   - Open Terminal/Command Prompt
+   - Navigate to this folder
+   - Run: python3 -m http.server 8000
+   - Open browser to: http://localhost:8000
+
+
+🎉 DONE! Your dashboard is now live!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+💡 IMPORTANT NOTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ This method is 100% FREE - no costs ever
+✓ Your data updates automatically when you edit the Google Sheet
+✓ Anyone with the CSV URL can view the data (don't use for sensitive info)
+✓ For private data, see GOOGLE_SHEETS_SETUP.md for API setup (also free!)
+
+
+🔧 TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Problem: "Failed to fetch CSV"
+Solution: Make sure you published the sheet and copied the full URL
+
+Problem: Charts not showing
+Solution: Open browser console (F12) and check for errors
+
+Problem: CORS error
+Solution: Use a local server (python3 -m http.server) instead of opening
+         the HTML file directly
+
+
+📚 MORE HELP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+README.md              - Full documentation
+SIMPLE_SETUP.md        - Detailed CSV setup guide
+GOOGLE_SHEETS_SETUP.md - Advanced API setup (for private sheets)
+SAMPLE_DATA.md         - Sample data template
+
+
+💰 COST: $0.00 (Completely Free!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ No Google Cloud costs
+✓ No API fees
+✓ No credit card required
+✓ No hidden charges
+
+
+Questions? Check the documentation files listed above!
