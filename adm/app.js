@@ -877,7 +877,7 @@ function renderThisWeekSection(){
     oppRows.forEach(r=>{
       const cls=classify(r);
       const amtProj=parseSheetNumber(r[COL_AMOUNT_PROJ]);
-      const val=amtProj>0? amtProj : 0; // pipeline generated = Amount Projected only
+      const val=amtProj>0? amtProj : 0;
       const admName=String(r[COL_ADM]||'Unknown').trim()||'Unknown';
       if(!perAdm[admName]) perAdm[admName]={calls:0,emails:0,demos:0,oppIn:0,oppOut:0,pipeIn:0,pipeOut:0};
       if(cls==='MarketingInbound' || cls==='InboundADM'){ oppIn+=1; pipeIn+=val; perAdm[admName].oppIn+=1; perAdm[admName].pipeIn+=val; }
