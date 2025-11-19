@@ -433,7 +433,8 @@ function renderOppDeeperInsights(dataset){
       const ids=['oppClosedLostReasonBySourceChart','oppAvgWonBySourceChart','oppAvgWonByADMChart'];
       ids.forEach(id=>{ const c=document.getElementById(id); const parent=c&&c.parentElement; if(parent){ parent.innerHTML='<div class="flex items-center justify-center h-full text-sm text-gray-500">No ADM-sourced opportunities found for this selection</div>'; }});
       const teamBody=document.getElementById('oppTeamSummaryTableBody'); if(teamBody){ teamBody.innerHTML='<tr><td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">No data for selection</td></tr>'; }
-      const admBody=document.getElementById('oppAdmSummaryTableBody'); if(admBody){ admBody.innerHTML='<tr><td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No data for selection</td></tr>'; }
+      const inBody=document.getElementById('oppAdmInboundSummaryTableBody'); if(inBody){ inBody.innerHTML='<tr><td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No data for selection</td></tr>'; }
+      const outBody=document.getElementById('oppAdmOutboundSummaryTableBody'); if(outBody){ outBody.innerHTML='<tr><td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No data for selection</td></tr>'; }
       if(oppClosedLostReasonBySourceChart){ oppClosedLostReasonBySourceChart.destroy(); oppClosedLostReasonBySourceChart=null; }
       if(oppAvgWonBySourceChart){ oppAvgWonBySourceChart.destroy(); oppAvgWonBySourceChart=null; }
       if(oppAvgWonByADMChart){ oppAvgWonByADMChart.destroy(); oppAvgWonByADMChart=null; }
@@ -558,9 +559,11 @@ function renderOppDeeperInsights(dataset){
       if(!teamBody.children.length){ const tr=document.createElement('tr'); tr.innerHTML='<td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">No data for selection</td>'; teamBody.appendChild(tr); }
     }
 
-    const admBody = document.getElementById('oppAdmSummaryTableBody');
-    if(admBody){
-      admBody.innerHTML='';
+    const inboundBody = document.getElementById('oppAdmInboundSummaryTableBody');
+    const outboundBody = document.getElementById('oppAdmOutboundSummaryTableBody');
+    if(inboundBody || outboundBody){
+      if(inboundBody) inboundBody.innerHTML='';
+      if(outboundBody) outboundBody.innerHTML='';
       const entries = Object.entries(byAdm).map(([adm,v])=>{
         const inboundCount = (v.inboundOpps||0);
         const outboundCount = v.outboundOpps||0;
@@ -578,7 +581,7 @@ function renderOppDeeperInsights(dataset){
       const topLostByAdm = {};
       dataset.forEach(r=>{
         const team = classify(r); if(team!=='MarketingInbound' && team!=='InboundADM' && team!=='Outbound') return;
-        const adm = String(r[COL_ADM]||'Unknown').trim()||'Unknown';
+        const adm = String(r[COL_ADM]||'Unknown').trim() || 'Unknown';
         const won = isClosedWonValue(r[COL_CLOSED_WON]);
         if(won) return; const reason = String(r[COL_LOST_REASON]||'').trim();
         if(!reason) return;
@@ -586,9 +589,13 @@ function renderOppDeeperInsights(dataset){
         topLostByAdm[adm][reason] = (topLostByAdm[adm][reason]||0)+1;
       });
 
-      if(entries.length===0){ const tr=document.createElement('tr'); tr.innerHTML='<td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No data for selection</td>'; admBody.appendChild(tr); }
-      else {
-        entries.forEach((e,idx)=>{
+      const inboundEntries = entries.filter(e=> isInboundAssigned(e.adm));
+      const outboundEntries = entries.filter(e=> !isInboundAssigned(e.adm));
+
+      const renderRows = (body, list) => {
+        if(!body) return;
+        if(list.length===0){ const tr=document.createElement('tr'); tr.innerHTML='<td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No data for selection</td>'; body.appendChild(tr); return; }
+        list.forEach((e,idx)=>{
           const tr=document.createElement('tr'); tr.className=idx%2===0?'bg-white':'bg-gray-50';
           const tmap = topLostByAdm[e.adm]||{};
           const topLR = Object.entries(tmap).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
@@ -597,13 +604,16 @@ function renderOppDeeperInsights(dataset){
             <td class="px-6 py-3 text-sm text-gray-900">${(e.inboundCount||0).toLocaleString()}</td>
             <td class="px-6 py-3 text-sm text-gray-900">${(e.outboundCount||0).toLocaleString()}</td>
             <td class="px-6 py-3 text-sm text-gray-900">${(e.won||0).toLocaleString()}</td>
-            <td class="px-6 py-3 text-sm text-gray-900">${to2(e.totalOpps? (e.won/e.totalOpps)*100:0).toFixed(2)}%</td>
+            <td class="px-6 py-3 text-sm text-gray-900">${(e.totalOpps? (e.won/e.totalOpps)*100:0).toFixed(2)}%</td>
             <td class="px-6 py-3 text-sm text-gray-900">${toCurrency(e.avgWonInbound||0)} / ${toCurrency(e.avgWonOutbound||0)}</td>
             <td class="px-6 py-3 text-sm text-gray-900">${toCurrency(e.totalWonSum||0)}</td>
             <td class="px-6 py-3 text-sm text-gray-900">${topLR}</td>`;
-          admBody.appendChild(tr);
+          body.appendChild(tr);
         });
-      }
+      };
+
+      renderRows(inboundBody, inboundEntries);
+      renderRows(outboundBody, outboundEntries);
     }
   }catch(e){ console.error('Error rendering OppData deeper insights', e); }
 }

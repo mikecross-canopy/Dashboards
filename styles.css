@@ -94,18 +94,17 @@ select:focus, input[type="date"]:focus {
 }
 
 ::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
+    background: #e5e7eb; /* gray-200 */
+    border-radius: 8px;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, #2B4BFF 0%, #0BE6C7 100%);
-    border-radius: 10px;
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    background: #9ca3af; /* gray-400 */
+    border-radius: 8px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, #0BE6C7 0%, #2B4BFF 100%);
+    background: #6b7280; /* gray-500 */
 }
 
 /* Table styles */
