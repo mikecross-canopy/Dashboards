@@ -530,7 +530,7 @@ function renderOppDeeperInsights(dataset){
           { label:'Inbound ADM Avg', data: iAdmData, backgroundColor:'rgba(34,197,94,0.8)' },
           { label:'Outbound Avg', data: outboundData, backgroundColor:'rgba(59,130,246,0.8)' }
         ] },
-        options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{ title:{display:true,text:'Average Closed Won Amount by ADM (Top 10)'}, datalabels:{ color:'#111', font:{size:10,weight:'600'}, formatter:(v)=>toCurrency(v) } }, scales:{ x:{ beginAtZero:true }, y:{ stacked:false } } }
+        options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, layout:{ padding:{ right:24 } }, plugins:{ title:{display:true,text:'Average Closed Won Amount by ADM'}, datalabels:{ anchor:'end', align:'right', offset:4, clamp:true, color:'#111', backgroundColor:'rgba(255,255,255,0.85)', borderColor:'rgba(0,0,0,0.08)', borderWidth:1, borderRadius:4, padding:3, font:{size:9,weight:'600'}, formatter:(v)=>toCurrency(v) } }, scales:{ x:{ beginAtZero:true }, y:{ stacked:false } } }
       });
     }
 
