@@ -200,6 +200,16 @@ if (typeof window !== 'undefined' && window.Chart && window.ChartDataLabels) {
     Chart.register(window.ChartDataLabels);
 }
 
+// Global datalabels formatter: round to 2 decimals for numeric values
+if (typeof window !== 'undefined' && window.Chart && Chart.defaults && Chart.defaults.plugins) {
+    Chart.defaults.plugins.datalabels = Object.assign({}, Chart.defaults.plugins.datalabels || {}, {
+        formatter: function(value) {
+            const n = Number(value);
+            return Number.isFinite(n) ? n.toFixed(2) : String(value);
+        }
+    });
+}
+
 function formatCurrencyShort(n) {
     const num = Number(n) || 0;
     const abs = Math.abs(num);
@@ -884,6 +894,29 @@ function parseSheetDate(value) {
     return isNaN(d.getTime()) ? null : d;
 }
 
+// Normalize sheet duration to minutes. Supports "HH:MM:SS" or "MM:SS" strings and day-fraction numbers.
+function normalizeDurationToMinutes(raw) {
+    if (raw == null || raw === '') return 0;
+    if (typeof raw === 'string') {
+        const s = raw.trim();
+        if (/^\d{1,2}:\d{2}(:\d{1,2})?$/.test(s)) {
+            const parts = s.split(':').map(Number);
+            let h = 0, m = 0, sec = 0;
+            if (parts.length === 3) { [h, m, sec] = parts; }
+            else if (parts.length === 2) { [m, sec] = parts; }
+            return (h * 60) + m + (sec / 60);
+        }
+        const n = parseSheetNumber(s);
+        // Values < 1 are likely day-fractions → minutes
+        return n < 1 ? n * 24 * 60 : n;
+    }
+    if (typeof raw === 'number') {
+        // Values < 1 → day-fraction; convert to minutes
+        return raw < 1 ? raw * 24 * 60 : raw;
+    }
+    return 0;
+}
+
 // Initialize OAuth 2.0
 async function initOAuth() {
     console.log('Loading Google API...');
@@ -1562,7 +1595,7 @@ function calculateActivitiesMetrics(activitiesData) {
         const activityTypeWfr = String(row[COL_ACTIVITY_TYPE_WFR] || '').toLowerCase().trim();
         const activityType = activityTypeWfr || activityTypeRaw;
         const callResult = String(row[COL_CALL_RESULT] || '').toLowerCase().trim();
-        const callDuration = parseSheetNumber(row[COL_CALL_DURATION]);
+        const callDuration = normalizeDurationToMinutes(row[COL_CALL_DURATION]);
         const disposition = String(row[COL_DISPOSITION] || '').toLowerCase().trim();
         const connect = String(row[COL_CONNECT] || '').toLowerCase().trim();
         const assignedUser = String(row[COL_ASSIGNED] || 'Unknown').trim() || 'Unknown';
