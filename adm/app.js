@@ -331,6 +331,7 @@ async function handleAdmAuth(){
           console.log('[ADM] OppData rows:', oppRows.length);
           admOppData = oppRows;
           renderOppCharts(admOppData);
+          renderThisWeekSection();
         } catch (e) {
           console.warn('Failed to fetch OppData', e);
         }
@@ -370,9 +371,9 @@ function initADMTeamToggles(){
     reset(allBtn, admTeamFilter==='all');
   };
 
-  inboundBtn.addEventListener('click', ()=>{ admTeamFilter='inbound'; console.log('[ADM] Team filter -> inbound'); setActive(); renderADMActivities(admActivitiesData||[]); renderOppCharts(admOppData||[]); });
-  outboundBtn.addEventListener('click', ()=>{ admTeamFilter='outbound'; console.log('[ADM] Team filter -> outbound'); setActive(); renderADMActivities(admActivitiesData||[]); renderOppCharts(admOppData||[]); });
-  allBtn.addEventListener('click', ()=>{ admTeamFilter='all'; console.log('[ADM] Team filter -> all'); setActive(); renderADMActivities(admActivitiesData||[]); renderOppCharts(admOppData||[]); });
+  inboundBtn.addEventListener('click', ()=>{ admTeamFilter='inbound'; console.log('[ADM] Team filter -> inbound'); setActive(); renderADMActivities(admActivitiesData||[]); renderOppCharts(admOppData||[]); renderThisWeekSection(); });
+  outboundBtn.addEventListener('click', ()=>{ admTeamFilter='outbound'; console.log('[ADM] Team filter -> outbound'); setActive(); renderADMActivities(admActivitiesData||[]); renderOppCharts(admOppData||[]); renderThisWeekSection(); });
+  allBtn.addEventListener('click', ()=>{ admTeamFilter='all'; console.log('[ADM] Team filter -> all'); setActive(); renderADMActivities(admActivitiesData||[]); renderOppCharts(admOppData||[]); renderThisWeekSection(); });
 
   // Initial state
   setActive();
@@ -816,4 +817,118 @@ function renderOppCharts(rows){
   }catch(e){
     console.error('Error rendering OppData charts', e);
   }
+}
+
+function getThisWeekRange(){
+  const now=new Date();
+  const day=now.getDay();
+  const diff=(day+6)%7;
+  const start=new Date(now.getFullYear(), now.getMonth(), now.getDate()-diff);
+  const end=new Date(start.getFullYear(), start.getMonth(), start.getDate()+6);
+  return {start,end};
+}
+
+function renderThisWeekSection(){
+  try{
+    const ids={
+      pipeTotal:document.getElementById('twPipelineTotal'),
+      pipeIn:document.getElementById('twPipelineInbound'),
+      pipeOut:document.getElementById('twPipelineOutbound'),
+      oppTotal:document.getElementById('twOppsTotal'),
+      oppIn:document.getElementById('twOppsInbound'),
+      oppOut:document.getElementById('twOppsOutbound'),
+      table:document.getElementById('thisWeekTeamHighlightsBody')
+    };
+    if(!ids.pipeTotal||!ids.pipeIn||!ids.pipeOut||!ids.oppTotal||!ids.oppIn||!ids.oppOut||!ids.table) return;
+    const w=getThisWeekRange();
+    const COL_SOURCE=15, COL_SUBSOURCE=16, COL_ADM=17, COL_CREATED=8, COL_AMOUNT_PROJ=5;
+    const isMarketingProspectScheduled = r => {
+      const srcRaw=String(r?.[COL_SOURCE]||'').trim().toLowerCase();
+      const subRaw=String(r?.[COL_SUBSOURCE]||'').trim().toLowerCase();
+      return srcRaw.includes('marketing') && (subRaw.includes('prospect') && subRaw.includes('sched'));
+    };
+    const isAdmSourced = r => {
+      if(!r) return false;
+      const rName=String(r[COL_ADM]||'').trim();
+      return rName!=='' || isMarketingProspectScheduled(r);
+    };
+    const classify = (row)=>{
+      const srcRaw=String(row[COL_SOURCE]||'').trim().toLowerCase();
+      const subRaw=String(row[COL_SUBSOURCE]||'').trim().toLowerCase();
+      const adm=String(row[COL_ADM]||'').trim();
+      const inboundRep=isInboundAssigned(adm);
+      const isMarketing=srcRaw.includes('marketing');
+      const isSales=srcRaw.includes('sales');
+      const isProspectScheduled=subRaw.includes('prospect') && subRaw.includes('sched');
+      if(isMarketing && isProspectScheduled) return 'MarketingInbound';
+      if(isSales && inboundRep) return 'InboundADM';
+      if(isMarketing || isSales) return 'Outbound';
+      return 'Other';
+    };
+    const oppRows=(admOppData||[]).filter(isAdmSourced).filter(r=>{
+      const d=parseSheetDate(r[COL_CREATED]); if(!d) return false; if(!inAllowedYears(d)) return false; return d>=w.start && d<=w.end;
+    }).filter(r=>{
+      const t = classify(r);
+      if(admTeamFilter==='all') return true;
+      return admTeamFilter==='inbound' ? (t==='MarketingInbound' || t==='InboundADM') : t==='Outbound';
+    });
+    let oppIn=0, oppOut=0, pipeIn=0, pipeOut=0;
+    const perAdm={};
+    oppRows.forEach(r=>{
+      const cls=classify(r);
+      const amtProj=parseSheetNumber(r[COL_AMOUNT_PROJ]);
+      const val=amtProj>0? amtProj : 0; // pipeline generated = Amount Projected only
+      const admName=String(r[COL_ADM]||'Unknown').trim()||'Unknown';
+      if(!perAdm[admName]) perAdm[admName]={calls:0,emails:0,demos:0,oppIn:0,oppOut:0,pipeIn:0,pipeOut:0};
+      if(cls==='MarketingInbound' || cls==='InboundADM'){ oppIn+=1; pipeIn+=val; perAdm[admName].oppIn+=1; perAdm[admName].pipeIn+=val; }
+      else if(cls==='Outbound'){ oppOut+=1; pipeOut+=val; perAdm[admName].oppOut+=1; perAdm[admName].pipeOut+=val; }
+    });
+    const aRows=(admActivitiesData||[]);
+    const COL_A_DATE=0, COL_A_ASSIGNED=1, COL_A_ROLE=2, COL_A_TYPE=7, COL_A_CALL_RESULT=9;
+    const actRows=aRows.filter(r=>{
+      if(String(r[COL_A_ROLE]||'').toLowerCase().trim()!=='adm') return false;
+      const d=parseSheetDate(r[COL_A_DATE]); if(!d) return false; if(!inAllowedYears(d)) return false; if(!(d>=w.start && d<=w.end)) return false;
+      if(admTeamFilter==='all') return true;
+      const assigned = r[COL_A_ASSIGNED];
+      const inbound = isInboundAssigned(assigned);
+      return admTeamFilter==='inbound' ? inbound : !inbound;
+    });
+    actRows.forEach(r=>{
+      const user=String(r[COL_A_ASSIGNED]||'Unknown').trim()||'Unknown';
+      const typeRaw=String(r[COL_A_TYPE]||'').toLowerCase();
+      const isCall=typeRaw.includes('call')||typeRaw.includes('phone');
+      const isEmail=typeRaw.includes('email')||typeRaw.includes('e-mail');
+      const callRes=String(r[COL_A_CALL_RESULT]||'').toLowerCase();
+      if(!perAdm[user]) perAdm[user]={calls:0,emails:0,demos:0,oppIn:0,oppOut:0,pipeIn:0,pipeOut:0};
+      if(isCall) perAdm[user].calls++;
+      if(isEmail) perAdm[user].emails++;
+      if(callRes==='demo set' || callRes.includes('demo')) perAdm[user].demos++;
+    });
+    ids.pipeTotal.textContent=toCurrency(pipeIn+pipeOut);
+    ids.pipeIn.textContent=toCurrency(pipeIn);
+    ids.pipeOut.textContent=toCurrency(pipeOut);
+    ids.oppTotal.textContent=(oppIn+oppOut).toLocaleString();
+    ids.oppIn.textContent=oppIn.toLocaleString();
+    ids.oppOut.textContent=oppOut.toLocaleString();
+    ids.table.innerHTML='';
+    const entries=Object.entries(perAdm).map(([u,v])=>({ user:u, ...v, totalOpp:(v.oppIn||0)+(v.oppOut||0), totalAct:(v.calls||0)+(v.emails||0) }))
+      .sort((a,b)=> (b.totalOpp - a.totalOpp) || (b.totalAct - a.totalAct));
+    if(entries.length===0){
+      const tr=document.createElement('tr'); tr.innerHTML='<td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No data for this week</td>'; ids.table.appendChild(tr);
+    }else{
+      entries.forEach((e,idx)=>{
+        const tr=document.createElement('tr'); tr.className=idx%2===0?'bg-white':'bg-gray-50';
+        tr.innerHTML=`
+          <td class="px-6 py-3 text-sm text-gray-900">${e.user}</td>
+          <td class="px-6 py-3 text-sm text-gray-900">${(e.calls||0).toLocaleString()}</td>
+          <td class="px-6 py-3 text-sm text-gray-900">${(e.emails||0).toLocaleString()}</td>
+          <td class="px-6 py-3 text-sm text-gray-900">${(e.demos||0).toLocaleString()}</td>
+          <td class="px-6 py-3 text-sm text-gray-900">${(e.oppIn||0).toLocaleString()}</td>
+          <td class="px-6 py-3 text-sm text-gray-900">${(e.oppOut||0).toLocaleString()}</td>
+          <td class="px-6 py-3 text-sm text-gray-900">${toCurrency(e.pipeIn||0)}</td>
+          <td class="px-6 py-3 text-sm text-gray-900">${toCurrency(e.pipeOut||0)}</td>`;
+        ids.table.appendChild(tr);
+      });
+    }
+  }catch(e){ console.error('Error rendering This Week section', e); }
 }

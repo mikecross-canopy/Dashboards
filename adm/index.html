@@ -71,6 +71,42 @@
         </div>
 
         <div class="bg-white p-6 rounded-lg shadow mb-8">
+            <h2 class="text-xl font-semibold mb-4">This Week</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="bg-white p-4 rounded-lg shadow border">
+                    <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Pipeline Generated</h3>
+                    <p id="twPipelineTotal" class="text-2xl font-bold mt-2 mb-1" style="background: linear-gradient(135deg, #2B4BFF 0%, #0BE6C7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">$0</p>
+                    <p class="text-sm text-gray-600"><span id="twPipelineInbound">$0</span> inbound • <span id="twPipelineOutbound">$0</span> outbound</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow border">
+                    <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Opportunities Created</h3>
+                    <p id="twOppsTotal" class="text-2xl font-bold mt-2 mb-1" style="background: linear-gradient(135deg, #0BE6C7 0%, #2B4BFF 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</p>
+                    <p class="text-sm text-gray-600"><span id="twOppsInbound">0</span> inbound • <span id="twOppsOutbound">0</span> outbound</p>
+                </div>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">Team Highlights (This Week)</h3>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead>
+                        <tr>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ADM</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Calls</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Emails</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Demo Sets</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Opps In</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Opps Out</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pipeline In</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pipeline Out</th>
+                        </tr>
+                    </thead>
+                    <tbody id="thisWeekTeamHighlightsBody" class="bg-white divide-y divide-gray-200">
+                        <tr><td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">Sign in to load data</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
             <h2 class="text-xl font-semibold mb-4">ADM Activities Overview</h2>
             <div class="chart-container">
                 <canvas id="admActivitiesChart"></canvas>
