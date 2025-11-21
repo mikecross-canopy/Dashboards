@@ -322,7 +322,6 @@ function handleUserFilterChange(event) {
     if (window.currentData) {
         console.log('🔍 DEBUG: Re-rendering charts with user filter');
         renderCharts(window.currentData);
-        renderProjectedDeals(window.currentData);
     }
 }
 
@@ -587,7 +586,7 @@ function updateOwnerSourceChart(data) {
         sourceTotals[subSource].count += 1;
     });
 
-    // Prepare data for grouped bar chart by source (GPV only)
+    // Prepare data for grouped bar chart by OWNER with sources as series (GPV only)
     const owners = ALLOWED_OWNERS.filter(o => ownerMatchesSelected(o)); // Respect user filter
     const sources = [...new Set(filteredData.map(row => row[12] || 'Implementation'))].sort();
 
@@ -619,11 +618,11 @@ function updateOwnerSourceChart(data) {
         'rgba(107, 114, 128, 0.8)'  // Gray
     ];
     
-    const ownerDatasets = owners.map((owner, index) => ({
-        label: owner,
-        data: sources.map(source => ownerSourceData[owner]?.[source]?.gpv || 0),
-        backgroundColor: OWNER_COLOR_PALETTE[index % OWNER_COLOR_PALETTE.length].fill,
-        borderColor: OWNER_COLOR_PALETTE[index % OWNER_COLOR_PALETTE.length].border,
+    const sourceDatasets = sources.map((source, index) => ({
+        label: source,
+        data: owners.map(owner => ownerSourceData[owner]?.[source]?.gpv || 0),
+        backgroundColor: sourceColorMap[source] || fallbackColors[index % fallbackColors.length],
+        borderColor: (sourceColorMap[source] || fallbackColors[index % fallbackColors.length]).replace('0.8', '1'),
         borderWidth: 2,
         borderRadius: 6
     }));
@@ -634,8 +633,8 @@ function updateOwnerSourceChart(data) {
         ownerSourceChart = new Chart(ownerSourceCtx, {
             type: 'bar',
             data: {
-                labels: sources,
-                datasets: ownerDatasets
+                labels: owners,
+                datasets: sourceDatasets
             },
             options: {
                 responsive: true,
@@ -645,18 +644,18 @@ function updateOwnerSourceChart(data) {
                     legend: { position: 'top' },
                     title: { 
                         display: true, 
-                        text: `Owner GPV by Source (${globalViewMode === 'closedWon' ? 'Closed Won' : globalViewMode === 'pipeline' ? 'Pipeline' : 'Total Opportunities'})`
+                        text: `Owner Opportunities by Source (GPV) — ${globalViewMode === 'closedWon' ? 'Closed Won' : globalViewMode === 'pipeline' ? 'Pipeline' : 'Total Opportunities'}`
                     },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
                                 const value = context.raw;
-                                const owner = context.dataset.label;
-                                const sourceName = context.label;
+                                const owner = context.label;
+                                const sourceName = context.dataset.label;
                                 const count = ownerSourceData[owner]?.[sourceName]?.count || 0;
-                                const totalGpvForSource = sourceTotals[sourceName]?.gpv || 0;
-                                const pctOfSource = totalGpvForSource > 0 ? ((value / totalGpvForSource) * 100).toFixed(1) : '0.0';
-                                return `${owner}: $${value.toLocaleString()} (${pctOfSource}% of ${sourceName}, ${count} opps)`;
+                                const ownerTotal = ownerTotals[owner]?.gpv || 0;
+                                const pctOfOwner = ownerTotal > 0 ? ((value / ownerTotal) * 100).toFixed(1) : '0.0';
+                                return `${sourceName}: $${value.toLocaleString()} (${pctOfOwner}% of ${owner}, ${count} opps)`;
                             }
                         }
                     }
@@ -666,7 +665,7 @@ function updateOwnerSourceChart(data) {
                         stacked: false,
                         title: {
                             display: true,
-                            text: 'Opportunity Source'
+                            text: 'Opportunity Owner'
                         }
                     },
                     y: {
@@ -733,7 +732,6 @@ function applyDateFilter(filterType) {
     // Re-render with new filter
     if (window.currentData) {
         renderCharts(window.currentData);
-        renderProjectedDeals(window.currentData);
         if (window.activitiesData) {
             renderActivitiesChart(window.activitiesData);
         }
@@ -756,7 +754,6 @@ function applyCustomDateFilter(startDate, endDate) {
     // Re-render with new filter
     if (window.currentData) {
         renderCharts(window.currentData);
-        renderProjectedDeals(window.currentData);
         if (window.activitiesData) {
             renderActivitiesChart(window.activitiesData);
         }
@@ -1892,10 +1889,6 @@ function renderCharts(data) {
     renderKeyMetrics(data);
     renderLeaderboard(data);
     renderFunnelChart(data);
-    // Render Projected Deals (uses its own internal filtering)
-    if (typeof renderProjectedDeals === 'function') {
-        renderProjectedDeals(data);
-    }
 
     console.log('Rendering charts with data:', data);
     
