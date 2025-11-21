@@ -106,6 +106,30 @@
         <!-- Additional Analytics Charts -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">Conversion Funnel</h2>
+                <div class="chart-container">
+                    <canvas id="funnelChart"></canvas>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow overflow-hidden">
+                <h2 class="text-xl font-semibold mb-4">Top Performers Leaderboard</h2>
+                <div class="overflow-x-auto" style="max-height: 320px;">
+                    <table class="min-w-full divide-y divide-gray-200" id="leaderboardTable">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">GPV</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deals</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Win Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="leaderboardBody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow">
                 <h2 class="text-xl font-semibold mb-4">Performance by Opportunity Owner</h2>
                 <div class="chart-container">
                     <canvas id="ownerPerformanceChart"></canvas>
@@ -161,6 +185,51 @@
             <p id="ownerSourceTop3" class="text-sm text-gray-600 mb-3"></p>
             <div class="chart-container">
                 <canvas id="ownerSourceChart" style="height: 600px;"></canvas>
+            </div>
+        </div>
+
+        <!-- Projected Deals Section -->
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+            <div class="flex flex-col md:flex-row justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-xl font-semibold">Projected Deals</h2>
+                    <p class="text-sm text-gray-600" id="projected-deals-date">Showing opportunities expected to close this month</p>
+                </div>
+            </div>
+            
+            <!-- Projected Metrics Summary -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" id="projected-deals-metrics">
+                <!-- Populated by JS -->
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200" id="projectedDealsTable">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer group" data-sort="name">
+                                Opportunity Name <span class="invisible group-hover:visible text-gray-400">↕</span>
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer group" data-sort="owner">
+                                Owner <span class="invisible group-hover:visible text-gray-400">↕</span>
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer group" data-sort="date">
+                                Close Date <span class="invisible group-hover:visible text-gray-400">↕</span>
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer group" data-sort="gpv">
+                                GPV <span class="invisible group-hover:visible text-gray-400">↕</span>
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer group" data-sort="stage">
+                                Stage <span class="invisible group-hover:visible text-gray-400">↕</span>
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer group" data-sort="days">
+                                Days to Close <span class="invisible group-hover:visible text-gray-400">↕</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200" id="projectedDealsTableBody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
             </div>
         </div>
 
