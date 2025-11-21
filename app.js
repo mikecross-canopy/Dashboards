@@ -69,6 +69,155 @@ function nameTokens(s) {
     return String(s || '').toLowerCase().replace(/[^a-z]/g, ' ').split(/\s+/).filter(Boolean);
 }
 
+// Small info buttons on each chart title with calculation details
+function attachChartInfoButtons() {
+    const infoMap = {
+        volumeChart: `
+            <div><strong>How it's calculated</strong>
+                <ul style="margin-top:6px; list-style: disc; padding-left: 16px;">
+                    <li>Deals filtered by global date range and view (Won/Pipeline/All), allowed owners, and user filter.</li>
+                    <li>Group by Close Date month (column H).</li>
+                    <li>Sum GPV (column J) per owner per month. Bars are grouped by month and colored by owner.</li>
+                    <li>Tooltip shows owner contribution and monthly total.</li>
+                </ul>
+            </div>`,
+        paymentMethodsChart: `
+            <div><strong>How it's calculated</strong>
+                <ul style="margin-top:6px; list-style: disc; padding-left: 16px;">
+                    <li>Deals filtered by global date/view, allowed owners, and user filter.</li>
+                    <li>GPV (column J) bucketed into ranges: 100K–300K, 300K–500K, 500K–700K, 700K–1M, 1M–3M, 3M–5M, 5M–8M, 8M–10M, 10M+.</li>
+                    <li>Bars stacked by owner show number of deals per range.</li>
+                </ul>
+            </div>`,
+        successRateChart: `
+            <div><strong>How it's calculated</strong>
+                <ul style="margin-top:6px; list-style: disc; padding-left: 16px;">
+                    <li>Deals filtered by global date/view, allowed owners, and user filter.</li>
+                    <li>Group by Close Date month; count of deals per month.</li>
+                    <li>Bars grouped by owner.</li>
+                </ul>
+            </div>`,
+        revenueByRegionChart: `
+            <div><strong>How it's calculated</strong>
+                <ul style="margin-top:6px; list-style: disc; padding-left: 16px;">
+                    <li>Deals filtered by global date/view, allowed owners, and user filter.</li>
+                    <li>Average Deal Size per owner per month = GPV sum / deal count for that owner and month.</li>
+                    <li>Team Average line = average across all owners for that month.</li>
+                </ul>
+            </div>`,
+        ownerPerformanceChart: `
+            <div><strong>How it's calculated</strong>
+                <ul style="margin-top:6px; list-style: disc; padding-left: 16px;">
+                    <li>Deals filtered by global date/view, allowed owners, and user filter.</li>
+                    <li>Total GPV (column J) per owner vs Deal Count per owner (dual-axis).</li>
+                </ul>
+            </div>`,
+        winRateChart: `
+            <div><strong>How it's calculated</strong>
+                <ul style="margin-top:6px; list-style: disc; padding-left: 16px;">
+                    <li>Rolling last 6 months from today; allowed owners only.</li>
+                    <li>Win Rate = Closed Won / (Closed Won + Closed Lost).</li>
+                    <li>Does not use the global date/view filters.</li>
+                </ul>
+            </div>`,
+        sourceChart: `
+            <div><strong>How it's calculated</strong>
+                <ul style="margin-top:6px; list-style: disc; padding-left: 16px;">
+                    <li>All deals across the dataset; shows share by Opportunity Sub-Source (column M).</li>
+                    <li>Tooltip shows owner breakdown and win-rate for each sub-source.</li>
+                    <li>Does not use the global date/view filters.</li>
+                </ul>
+            </div>`,
+        ageChart: `
+            <div><strong>How it's calculated</strong>
+                <ul style="margin-top:6px; list-style: disc; padding-left: 16px;">
+                    <li>Deals filtered by global date/view, allowed owners, and user filter.</li>
+                    <li>Average age in days (column G) per Customer Segment (column S) and owner.</li>
+                    <li>Team Average line shows overall average for each segment.</li>
+                </ul>
+            </div>`,
+        processorChart: `
+            <div><strong>How it's calculated</strong>
+                <ul style="margin-top:6px; list-style: disc; padding-left: 16px;">
+                    <li>Counts of Current Payment Processor (column Q) across all deals.</li>
+                    <li>Top 5 processors by count; shows percentage labels when large enough.</li>
+                    <li>Does not use global filters.</li>
+                </ul>
+            </div>`,
+        segmentChart: `
+            <div><strong>How it's calculated</strong>
+                <ul style="margin-top:6px; list-style: disc; padding-left: 16px;">
+                    <li>Counts of opportunities per Customer Segment (column S) across all deals.</li>
+                    <li>Tooltip includes total GPV for the segment.</li>
+                    <li>Does not use global filters.</li>
+                </ul>
+            </div>`,
+        ownerSourceChart: `
+            <div><strong>How it's calculated</strong>
+                <ul style="margin-top:6px; list-style: disc; padding-left: 16px;">
+                    <li>Deals filtered by global date/view, allowed owners, and user filter.</li>
+                    <li>X-axis = Opportunity Owner; Each bar in a group = Sub-Source (column M) GPV.</li>
+                    <li>Tooltip also shows count of opportunities for that owner+source.</li>
+                </ul>
+            </div>`,
+        funnelChart: `
+            <div><strong>How it's calculated</strong>
+                <ul style="margin-top:6px; list-style: disc; padding-left: 16px;">
+                    <li>Deals filtered by global date range (not view), allowed owners, and user filter.</li>
+                    <li>Stages bucketed into: Discovery/Qual, Proposal/Quote, Negotiation/Review, Closed Won.</li>
+                    <li>Counts deals per bucket.</li>
+                </ul>
+            </div>`
+    };
+
+    const addButton = (canvasId, html) => {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const card = canvas.closest('.bg-white');
+        if (!card) return;
+        const title = card.querySelector('h2');
+        if (!title || title.querySelector('.chart-info-btn')) return;
+        card.style.position = 'relative';
+        title.style.display = 'flex';
+        title.style.alignItems = 'center';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'chart-info-btn';
+        btn.textContent = 'i';
+        btn.setAttribute('aria-label', 'Chart calculation info');
+        title.appendChild(btn);
+        const pop = document.createElement('div');
+        pop.className = 'info-popover hidden';
+        pop.innerHTML = html;
+        card.appendChild(pop);
+        const place = () => {
+            const top = title.offsetTop + title.offsetHeight + 6;
+            pop.style.top = top + 'px';
+            pop.style.right = '12px';
+        };
+        place();
+        window.addEventListener('resize', place);
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.info-popover').forEach(el => el.classList.add('hidden'));
+            pop.classList.toggle('hidden');
+        });
+    };
+
+    Object.entries(infoMap).forEach(([id, html]) => addButton(id, html));
+    if (!window.__chartInfoGlobalCloser) {
+        window.__chartInfoGlobalCloser = true;
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.info-popover').forEach(el => el.classList.add('hidden'));
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.info-popover').forEach(el => el.classList.add('hidden'));
+            }
+        });
+    }
+}
+
 // Toggle Activities section to reduce memory usage by lazy rendering and destroying the chart when hidden
 function initActivitiesToggle() {
     const toggleBtn = document.getElementById('toggleActivitiesBtn');
@@ -225,6 +374,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize UI pieces that don't depend on data, regardless of auth flow
     initDateFilterControls();
     initActivitiesToggle();
+    attachChartInfoButtons();
     try {
         console.log('Dashboard initializing...');
         console.log('Auth method:', CONFIG.AUTH_METHOD);
