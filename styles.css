@@ -131,3 +131,53 @@ select:focus, input[type="date"]:focus {
     background-image: linear-gradient(to right, #2563eb, #06b6d4);
 }
 
+.chart-info-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    border-radius: 9999px;
+    border: 1px solid rgba(17, 24, 39, 0.12);
+    background: #ffffff;
+    color: #111827;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06), 0 1px 1px rgba(0,0,0,0.04);
+    transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease, background-color 120ms ease;
+}
+
+.chart-info-btn:hover {
+    background: #f5f7ff;
+    border-color: #6366f1;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+    transform: translateY(-1px);
+}
+
+.chart-info-btn:active {
+    transform: translateY(0);
+}
+
+.chart-info-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+}
+
+.info-popover {
+    position: absolute;
+    z-index: 50;
+    max-width: 320px;
+    background: #ffffff;
+    color: #111827;
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 8px;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    padding: 10px 12px;
+    font-size: 12px;
+}
+
