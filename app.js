@@ -510,20 +510,14 @@ function updateGlobalToggleButtons() {
     const globalTotalOppsToggle = document.getElementById('globalTotalOppsToggle');
     const globalPipelineToggle = document.getElementById('globalPipelineToggle');
 
+    const activeClass = 'px-4 py-2 text-sm rounded-md bg-blue-500 text-white transition-colors';
+    const inactiveClass = 'px-4 py-2 text-sm rounded-md text-gray-700 hover:bg-gray-200 transition-colors';
+
     if (!globalClosedWonToggle || !globalTotalOppsToggle || !globalPipelineToggle) return;
 
-    // Helper to set active state
-    const setActive = (el, isActive) => {
-        if (isActive) {
-            el.classList.add('active');
-        } else {
-            el.classList.remove('active');
-        }
-    };
-
-    setActive(globalClosedWonToggle, globalViewMode === 'closedWon');
-    setActive(globalTotalOppsToggle, globalViewMode === 'totalOpportunities');
-    setActive(globalPipelineToggle, globalViewMode === 'pipeline');
+    globalClosedWonToggle.className = (globalViewMode === 'closedWon') ? activeClass : inactiveClass;
+    globalTotalOppsToggle.className = (globalViewMode === 'totalOpportunities') ? activeClass : inactiveClass;
+    globalPipelineToggle.className = (globalViewMode === 'pipeline') ? activeClass : inactiveClass;
 }
 
 function updateOwnerSourceChart(data) {
@@ -3844,4 +3838,3 @@ async function fetchMockData() {
     
     return mockData;
 }
-
