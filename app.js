@@ -26,7 +26,7 @@ const CONFIG = Object.assign({}, DEFAULT_CONFIG, (window.CONFIG || {}));
 // Chart instances
 let volumeChart, paymentMethodsChart, successRateChart, revenueByRegionChart;
 let ownerPerformanceChart, winRateChart, sourceChart, ageChart;
-let processorChart, segmentChart, ownerSourceChart, activitiesChart;
+let processorChart, segmentChart, ownerSourceChart, activitiesChart, funnelChart;
 
 // Google API client state
 let gapiInited = false;
@@ -1398,6 +1398,209 @@ function showMetricsSummary(metrics) {
     container.insertBefore(summaryDiv, nextElement);
 }
 
+// Render Key Metrics Cards
+function renderKeyMetrics(data) {
+    // Apply current filters to data first (Owner, Date)
+    const filteredData = data.filter(row => {
+        // Owner Filter
+        const owner = String(row[0] || '').trim();
+        if (!isAllowedOwnerName(owner)) return false;
+        if (!ownerMatchesSelected(owner)) return false;
+
+        // Date Filter
+        const dealDate = parseSheetDate(row[7]);
+        const startDate = currentDateFilter.startDate;
+        const endDate = currentDateFilter.endDate;
+        if (startDate && (!dealDate || dealDate < startDate)) return false;
+        if (endDate && (!dealDate || dealDate > endDate)) return false;
+
+        return true;
+    });
+
+    let totalGPV = 0;
+    let activePipeline = 0;
+    let dealsWon = 0;
+
+    filteredData.forEach(row => {
+        const stage = String(row[4] || '').toLowerCase().trim();
+        const gpv = parseSheetNumber(row[9]);
+        
+        if (stage === 'closed won') {
+            totalGPV += gpv;
+            dealsWon++;
+        } else if (stage !== 'closed lost' && stage !== 'lost' && stage !== '') {
+            activePipeline += gpv;
+        }
+    });
+
+    const avgDealSize = dealsWon > 0 ? totalGPV / dealsWon : 0;
+
+    const elTotalGPV = document.getElementById('metricTotalGPV');
+    const elPipeline = document.getElementById('metricPipeline');
+    const elDealsWon = document.getElementById('metricDealsWon');
+    const elAvgDealSize = document.getElementById('metricAvgDealSize');
+
+    if (elTotalGPV) elTotalGPV.textContent = formatCurrencyShort(totalGPV);
+    if (elPipeline) elPipeline.textContent = formatCurrencyShort(activePipeline);
+    if (elDealsWon) elDealsWon.textContent = dealsWon;
+    if (elAvgDealSize) elAvgDealSize.textContent = formatCurrencyShort(avgDealSize);
+}
+
+// Render Top Performers Leaderboard
+function renderLeaderboard(data) {
+    // Apply current filters (Owner, Date)
+    const filteredData = data.filter(row => {
+        const owner = String(row[0] || '').trim();
+        if (!isAllowedOwnerName(owner)) return false;
+        if (!ownerMatchesSelected(owner)) return false;
+
+        const dealDate = parseSheetDate(row[7]);
+        const startDate = currentDateFilter.startDate;
+        const endDate = currentDateFilter.endDate;
+        if (startDate && (!dealDate || dealDate < startDate)) return false;
+        if (endDate && (!dealDate || dealDate > endDate)) return false;
+
+        return true;
+    });
+
+    const tbody = document.getElementById('leaderboardBody');
+    if (!tbody) return;
+
+    const stats = {};
+    filteredData.forEach(row => {
+        const owner = canonicalizeOwner(row[0] || 'Unknown');
+        const stage = String(row[4] || '').toLowerCase().trim();
+        const gpv = parseSheetNumber(row[9]);
+
+        if (!stats[owner]) stats[owner] = { gpv: 0, deals: 0, won: 0, total: 0 };
+        
+        stats[owner].total++;
+        if (stage === 'closed won') {
+            stats[owner].gpv += gpv;
+            stats[owner].deals++; // Won deals
+            stats[owner].won++;
+        }
+    });
+
+    const sortedOwners = Object.keys(stats)
+        .filter(owner => stats[owner].gpv > 0 || stats[owner].won > 0)
+        .sort((a, b) => stats[b].gpv - stats[a].gpv);
+
+    tbody.innerHTML = sortedOwners.map((owner, index) => {
+        const s = stats[owner];
+        const winRate = s.total > 0 ? ((s.won / s.total) * 100).toFixed(1) : 0;
+        const rank = index + 1;
+        const rankColor = rank === 1 ? 'text-yellow-500' : rank === 2 ? 'text-gray-400' : rank === 3 ? 'text-yellow-700' : 'text-gray-500';
+        
+        return `
+            <tr class="hover:bg-gray-50 transition-colors">
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="flex items-center">
+                        <span class="font-bold mr-3 ${rankColor}">#${rank}</span>
+                        <div class="text-sm font-medium text-gray-900">${owner}</div>
+                    </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">$${s.gpv.toLocaleString()}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${s.won}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <div class="flex items-center">
+                        <span class="mr-2 w-10 text-right">${winRate}%</span>
+                        <div class="w-24 bg-gray-200 rounded-full h-2">
+                            <div class="bg-blue-500 h-2 rounded-full" style="width: ${winRate}%"></div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Render Funnel Chart
+function renderFunnelChart(data) {
+    // Apply filters
+    const filteredData = data.filter(row => {
+        const owner = String(row[0] || '').trim();
+        if (!isAllowedOwnerName(owner)) return false;
+        if (!ownerMatchesSelected(owner)) return false;
+
+        const dealDate = parseSheetDate(row[7]);
+        const startDate = currentDateFilter.startDate;
+        const endDate = currentDateFilter.endDate;
+        if (startDate && (!dealDate || dealDate < startDate)) return false;
+        if (endDate && (!dealDate || dealDate > endDate)) return false;
+        return true;
+    });
+
+    const funnelGroups = {
+        'Discovery/Qual': 0,
+        'Proposal/Quote': 0,
+        'Negotiation/Review': 0,
+        'Closed Won': 0
+    };
+
+    filteredData.forEach(row => {
+        const s = String(row[4] || '').toLowerCase().trim();
+        if (s.includes('won')) funnelGroups['Closed Won']++;
+        else if (s.includes('negotiat') || s.includes('review') || s.includes('contract')) funnelGroups['Negotiation/Review']++;
+        else if (s.includes('prop') || s.includes('quote') || s.includes('present')) funnelGroups['Proposal/Quote']++;
+        else if (s.includes('disc') || s.includes('qual') || s.includes('lead') || s.includes('meet') || s.includes('sched')) funnelGroups['Discovery/Qual']++;
+    });
+    
+    const labels = ['Discovery/Qual', 'Proposal/Quote', 'Negotiation/Review', 'Closed Won'];
+    const values = labels.map(l => funnelGroups[l]);
+
+    const ctx = document.getElementById('funnelChart');
+    if (!ctx) return;
+
+    if (funnelChart) funnelChart.destroy();
+
+    funnelChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Deals',
+                data: values,
+                backgroundColor: [
+                    'rgba(43, 75, 255, 0.5)',
+                    'rgba(43, 75, 255, 0.7)',
+                    'rgba(43, 75, 255, 0.9)',
+                    'rgba(11, 230, 199, 0.9)'
+                ],
+                borderRadius: 4,
+                barPercentage: 0.6
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `${ctx.raw} deals`
+                    }
+                },
+                datalabels: {
+                    anchor: 'end',
+                    align: 'end',
+                    color: '#333',
+                    font: { weight: 'bold' },
+                    formatter: (value) => value > 0 ? value : ''
+                }
+            },
+            scales: {
+                x: { display: false, grid: { display: false } },
+                y: { 
+                    grid: { display: false },
+                    ticks: { font: { weight: '600', size: 12 } }
+                }
+            }
+        }
+    });
+}
+
 // Calculate metrics from Payment Opps data
 function calculateMetrics(data) {
     console.log('Calculating metrics from data:', data);
@@ -1689,6 +1892,15 @@ function calculateActivitiesMetrics(activitiesData) {
 
 // Render all charts
 function renderCharts(data) {
+    // Update Key Metrics and New Charts
+    renderKeyMetrics(data);
+    renderLeaderboard(data);
+    renderFunnelChart(data);
+    // Render Projected Deals (uses its own internal filtering)
+    if (typeof renderProjectedDeals === 'function') {
+        renderProjectedDeals(data);
+    }
+
     console.log('Rendering charts with data:', data);
     
     // Destroy existing charts to prevent duplicates
@@ -3627,4 +3839,3 @@ async function fetchMockData() {
     return mockData;
 }
 
-// Removed manual resize handler to avoid resize loops; Chart.js handles responsiveness internally.
