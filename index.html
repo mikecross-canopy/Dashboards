@@ -24,14 +24,12 @@
             <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 mb-6">
                 <div>
                     <h3 class="text-lg font-semibold text-gray-800 mb-2">Global View Filter</h3>
-                    <div class="flex items-center space-x-3">
-                        <label class="text-sm font-medium text-gray-500 uppercase tracking-wide text-xs">View Mode</label>
-                        <div class="view-toggle-container">
-                            <div class="view-toggle-group">
-                                <button id="globalClosedWonToggle" class="view-toggle-btn active">Won Only</button>
-                                <button id="globalPipelineToggle" class="view-toggle-btn">Pipeline</button>
-                                <button id="globalTotalOppsToggle" class="view-toggle-btn">All Opps</button>
-                            </div>
+                    <div class="flex items-center space-x-2">
+                        <label class="text-sm font-medium text-gray-700">Show:</label>
+                        <div class="flex bg-gray-100 rounded-lg p-1">
+                            <button id="globalClosedWonToggle" class="px-4 py-2 text-sm rounded-md bg-blue-500 text-white transition-colors">Closed Won Only</button>
+                            <button id="globalTotalOppsToggle" class="px-4 py-2 text-sm rounded-md text-gray-700 hover:bg-gray-200 transition-colors">All Opportunities</button>
+                            <button id="globalPipelineToggle" class="px-4 py-2 text-sm rounded-md text-gray-700 hover:bg-gray-200 transition-colors">Pipeline</button>
                         </div>
                     </div>
                 </div>
