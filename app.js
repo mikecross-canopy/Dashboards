@@ -176,22 +176,23 @@ function attachChartInfoButtons() {
         const card = canvas.closest('.bg-white');
         if (!card) return;
         const title = card.querySelector('h2');
-        if (!title || title.querySelector('.chart-info-btn')) return;
+        if (!title) return;
+        if (card.querySelector('.chart-info-btn')) return;
         card.style.position = 'relative';
-        title.style.display = 'flex';
-        title.style.alignItems = 'center';
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'chart-info-btn';
         btn.textContent = 'i';
         btn.setAttribute('aria-label', 'Chart calculation info');
-        title.appendChild(btn);
+        card.appendChild(btn);
         const pop = document.createElement('div');
         pop.className = 'info-popover hidden';
         pop.innerHTML = html;
         card.appendChild(pop);
         const place = () => {
-            const top = title.offsetTop + title.offsetHeight + 6;
+            const btnRect = btn.getBoundingClientRect();
+            const cardRect = card.getBoundingClientRect();
+            const top = (btnRect.top - cardRect.top) + btn.offsetHeight + 8; // below button
             pop.style.top = top + 'px';
             pop.style.right = '12px';
         };
