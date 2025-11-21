@@ -587,7 +587,7 @@ function updateOwnerSourceChart(data) {
         sourceTotals[subSource].count += 1;
     });
 
-    // Prepare data for stacked bar chart
+    // Prepare data for grouped bar chart by source (GPV only)
     const owners = ALLOWED_OWNERS.filter(o => ownerMatchesSelected(o)); // Respect user filter
     const sources = [...new Set(filteredData.map(row => row[12] || 'Implementation'))].sort();
 
@@ -619,18 +619,13 @@ function updateOwnerSourceChart(data) {
         'rgba(107, 114, 128, 0.8)'  // Gray
     ];
     
-    const gpvDatasets = sources.map((source, index) => ({
-        label: `${source} GPV`,
-        data: owners.map(owner => ownerSourceData[owner]?.[source]?.gpv || 0),
-        backgroundColor: sourceColorMap[source] || fallbackColors[index % fallbackColors.length],
-        stack: 'gpv'
-    }));
-
-    const countDatasets = sources.map((source, index) => ({
-        label: `${source} Count`,
-        data: owners.map(owner => ownerSourceData[owner]?.[source]?.count || 0),
-        backgroundColor: (sourceColorMap[source] || fallbackColors[index % fallbackColors.length]).replace('0.8', '0.6'),
-        stack: 'count'
+    const ownerDatasets = owners.map((owner, index) => ({
+        label: owner,
+        data: sources.map(source => ownerSourceData[owner]?.[source]?.gpv || 0),
+        backgroundColor: OWNER_COLOR_PALETTE[index % OWNER_COLOR_PALETTE.length].fill,
+        borderColor: OWNER_COLOR_PALETTE[index % OWNER_COLOR_PALETTE.length].border,
+        borderWidth: 2,
+        borderRadius: 6
     }));
 
     const ownerSourceCanvas = document.getElementById('ownerSourceChart');
@@ -639,8 +634,8 @@ function updateOwnerSourceChart(data) {
         ownerSourceChart = new Chart(ownerSourceCtx, {
             type: 'bar',
             data: {
-                labels: owners,
-                datasets: [...gpvDatasets, ...countDatasets]
+                labels: sources,
+                datasets: ownerDatasets
             },
             options: {
                 responsive: true,
@@ -650,24 +645,18 @@ function updateOwnerSourceChart(data) {
                     legend: { position: 'top' },
                     title: { 
                         display: true, 
-                        text: `Owner Opportunities by Source (${globalViewMode === 'closedWon' ? 'Closed Won' : globalViewMode === 'pipeline' ? 'Pipeline' : 'Total Opportunities'})` 
+                        text: `Owner GPV by Source (${globalViewMode === 'closedWon' ? 'Closed Won' : globalViewMode === 'pipeline' ? 'Pipeline' : 'Total Opportunities'})`
                     },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
                                 const value = context.raw;
-                                const datasetLabel = context.dataset.label; // e.g., "Referral GPV" or "Referral Count"
-                                const owner = owners[context.dataIndex];
-                                const sourceName = datasetLabel.replace(/\s+(GPV|Count)$/,'');
-                                if (datasetLabel.includes('GPV')) {
-                                    const ownerGpvTotal = ownerTotals[owner]?.gpv || 0;
-                                    const pct = ownerGpvTotal > 0 ? ((value / ownerGpvTotal) * 100).toFixed(1) : '0.0';
-                                    return `${sourceName}: $${value.toLocaleString()} (${pct}% of ${owner})`;
-                                } else {
-                                    const ownerCountTotal = ownerTotals[owner]?.count || 0;
-                                    const pct = ownerCountTotal > 0 ? ((value / ownerCountTotal) * 100).toFixed(1) : '0.0';
-                                    return `${sourceName}: ${value} opps (${pct}% of ${owner})`;
-                                }
+                                const owner = context.dataset.label;
+                                const sourceName = context.label;
+                                const count = ownerSourceData[owner]?.[sourceName]?.count || 0;
+                                const totalGpvForSource = sourceTotals[sourceName]?.gpv || 0;
+                                const pctOfSource = totalGpvForSource > 0 ? ((value / totalGpvForSource) * 100).toFixed(1) : '0.0';
+                                return `${owner}: $${value.toLocaleString()} (${pctOfSource}% of ${sourceName}, ${count} opps)`;
                             }
                         }
                     }
@@ -677,18 +666,18 @@ function updateOwnerSourceChart(data) {
                         stacked: false,
                         title: {
                             display: true,
-                            text: 'Opportunity Owner'
+                            text: 'Opportunity Source'
                         }
                     },
                     y: {
                         stacked: false,
                         title: {
                             display: true,
-                            text: 'GPV / Count'
+                            text: 'GPV'
                         },
                         ticks: {
                             callback: function(value) {
-                                return value >= 1000 ? '$' + (value / 1000).toFixed(1) + 'K' : value;
+                                return formatCurrencyShort(value);
                             }
                         }
                     }
