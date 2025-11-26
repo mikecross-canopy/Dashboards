@@ -311,6 +311,23 @@ async function fetchActivitiesDataOAuth(){
   const values=resp.result.values||[]; if(values.length<=1) return []; return values.slice(1); // drop header
 }
 
+function setLoading(active){
+  const overlay = document.getElementById('loadingOverlay');
+  if(overlay) overlay.style.display = active ? 'flex' : 'none';
+  const btn = document.getElementById('admAuthBtn');
+  if(btn){
+    if(active){
+      btn.disabled = true;
+      btn.textContent = 'Loading...';
+      btn.classList.add('opacity-70');
+    } else {
+      btn.disabled = false;
+      btn.textContent = dataLoaded ? 'Data Loaded' : 'Sign in to Load Data';
+      btn.classList.remove('opacity-70');
+    }
+  }
+}
+
 async function handleAdmAuth(){
   if(isLoading||dataLoaded) return;
   try{
@@ -318,6 +335,7 @@ async function handleAdmAuth(){
     if(!tokenClient){ tokenClient=google.accounts.oauth2.initTokenClient({ client_id: CONFIG.CLIENT_ID, scope: CONFIG.SCOPES, prompt:'', callback: async(resp)=>{
       if(resp.error) return;
       isLoading=true;
+      setLoading(true);
       try{
         console.log('[ADM] OAuth callback OK, fetching Activities...');
         const rows=await fetchActivitiesDataOAuth();
@@ -337,11 +355,10 @@ async function handleAdmAuth(){
         }
         dataLoaded=true;
       }catch(e){ console.error('ADM fetch error', e); alert('Failed to load ADM activities: '+e.message); }
-      finally{ isLoading=false; }
+      finally{ isLoading=false; setLoading(false); }
     }}); }
-    const btn=document.getElementById('admAuthBtn'); if(btn){ btn.disabled=true; btn.textContent='Loading...'; btn.classList.add('opacity-70'); }
     tokenClient.requestAccessToken();
-  }catch(e){ console.error('Auth init error', e); alert('Authentication error: '+e.message); const btn=document.getElementById('admAuthBtn'); if(btn){ btn.disabled=false; btn.textContent='Sign in to Load Data'; btn.classList.remove('opacity-70'); } }
+  }catch(e){ console.error('Auth init error', e); alert('Authentication error: '+e.message); setLoading(false); }
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
@@ -938,7 +955,6 @@ function renderThisWeekSection(){
         const format = (v) => isCurrency ? toCurrency(v) : Math.abs(v).toLocaleString();
         const arrow = diff > 0 ? '▲' : (diff < 0 ? '▼' : '—');
         const color = diff > 0 ? 'text-green-600' : (diff < 0 ? 'text-red-600' : 'text-gray-500');
-        const suffix = isCurrency ? ' last week' : ' last week';
         
         let text = '';
         if(diff === 0) text = 'No change vs last week';
