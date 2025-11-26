@@ -984,10 +984,24 @@ function renderThisWeekSection(){
     const aRows=(admActivitiesData||[]);
     const COL_A_DATE=17, COL_A_ASSIGNED=1, COL_A_ROLE=2, COL_A_TYPE=7, COL_A_CALL_RESULT=9;
     
-    // Debug: Check unique roles
-    const uniqueRoles = new Set();
-    aRows.slice(0, 1000).forEach(r => uniqueRoles.add(String(r[COL_A_ROLE]||'').trim()));
-    console.log('[ThisWeek] Sample Roles:', Array.from(uniqueRoles));
+    // Debug: Check date range of data
+    let minDate=new Date(8640000000000000);
+    let maxDate=new Date(-8640000000000000);
+    let validDates=0;
+    aRows.forEach(r=>{
+        const d=parseSheetDate(r[COL_A_DATE]);
+        if(d && !isNaN(d.getTime())){
+            if(d<minDate) minDate=d;
+            if(d>maxDate) maxDate=d;
+            validDates++;
+        }
+    });
+    console.log('[ThisWeek] Activity Data Status:', { 
+        totalRows: aRows.length, 
+        validDates,
+        minDate: minDate.toLocaleDateString(),
+        maxDate: maxDate.toLocaleDateString()
+    });
 
     const actRows=aRows.filter(r=>{
       const role = String(r[COL_A_ROLE]||'').toLowerCase().trim();
