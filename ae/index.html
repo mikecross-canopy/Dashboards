@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AE Dashboard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-8">
+            <h1 class="text-4xl font-bold mb-3" style="background: linear-gradient(135deg, #2B4BFF 0%, #0BE6C7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">AE Dashboard</h1>
+            <p class="text-lg font-semibold" style="color: #000000;">Performance analytics for Account Executives</p>
+        </header>
+
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+                <div class="flex-1 max-w-md">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Date Range Filter</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Quick Filters</label>
+                            <select id="aeDateFilterSelect" class="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="all-time">All Time</option>
+                                <option value="this-year">This Year</option>
+                                <option value="this-quarter" selected>This Quarter</option>
+                                <option value="last-quarter">Last Quarter</option>
+                                <option value="this-month">This Month</option>
+                                <option value="last-month">Last Month</option>
+                                <option value="custom">Custom Range</option>
+                            </select>
+                        </div>
+                        <div id="aeCustomDateRange" class="hidden">
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
+                            <input type="date" id="aeStartDateInput" class="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div id="aeCustomDateRangeEnd" class="hidden">
+                            <label class="block text-xs font-medium text-gray-700 mb-1">End Date</label>
+                            <input type="date" id="aeEndDateInput" class="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div class="flex items-end">
+                            <button id="aeApplyFilterBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-1 px-3 rounded-md text-sm transition duration-200 hidden">
+                                Apply
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-end lg:items-center">
+                    <button id="aeAuthBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md text-sm transition duration-200">Sign in to Load Data</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6" id="ae-metrics-cards">
+            <!-- Metrics populated by JS -->
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+            <h2 class="text-xl font-semibold mb-4">Performance Charts</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="chart-container h-80">
+                    <canvas id="attainmentChart"></canvas>
+                </div>
+                <div class="chart-container h-80">
+                    <canvas id="winRateChart"></canvas>
+                </div>
+                <div class="chart-container h-80">
+                    <canvas id="pipelineChart"></canvas>
+                </div>
+                <div class="chart-container h-80">
+                    <canvas id="callsChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+            <h2 class="text-xl font-semibold mb-4">AE Scorecard</h2>
+            <div class="overflow-x-auto" style="max-height: 600px; overflow-y: auto;">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead>
+                        <tr id="aeScorecardHeaderRow">
+                            <!-- Headers populated by JS -->
+                        </tr>
+                    </thead>
+                    <tbody id="aeScorecardBody" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+            <h2 class="text-xl font-semibold mb-4">Recent Opportunity Splits</h2>
+            <div class="overflow-x-auto" style="max-height: 400px; overflow-y: auto;">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead>
+                        <tr>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Close Date</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner / User</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account & Opp</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stage</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Split Type</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ARR</th>
+                        </tr>
+                    </thead>
+                    <tbody id="aeOppSplitsBody" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="../config.public.js"></script>
+    <script src="./app.js"></script>
+</body>
+</html>
