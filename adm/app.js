@@ -869,9 +869,35 @@ function renderThisWeekSection(){
     
     const w=getThisWeekRange();
     const lw=getLastWeekRange();
+    
+    // Adjust Last Week to match current week's progress (Same Point in Time)
+    // getThisWeekRange returns Mon-Sun.
+    // If today is Wednesday, we have Mon, Tue, Wed (3 days).
+    // We should compare against Mon, Tue, Wed of last week.
+    const now = new Date();
+    // day: 0=Sun...6=Sat. Mon=1.
+    // diff from Mon: (day+6)%7. Mon(1)->0. Wed(3)->2.
+    // daysIntoWeek = diff + 1. (1 for Mon, 3 for Wed).
+    // If today is Sunday (6), daysIntoWeek=7.
+    // However, we only want to limit the *end* date of last week.
+    const daysIntoWeek = (now.getDay() + 6) % 7 + 1;
+    
+    // If we are viewing a past period via filter, this logic might need adjustment, 
+    // but this section is explicitly "This Week", so it assumes strict current week context.
+    
+    const lwEndAdjusted = new Date(lw.start);
+    lwEndAdjusted.setDate(lwEndAdjusted.getDate() + daysIntoWeek - 1);
+    // Set end of day
+    lwEndAdjusted.setHours(23,59,59,999);
+
+    // Use this adjusted range for comparison
+    const lwAdjusted = { start: lw.start, end: lwEndAdjusted };
+    
     console.log('[ThisWeek] Ranges:', { 
         thisWeek: { start: w.start.toLocaleDateString(), end: w.end.toLocaleDateString() },
-        lastWeek: { start: lw.start.toLocaleDateString(), end: lw.end.toLocaleDateString() }
+        lastWeekFull: { start: lw.start.toLocaleDateString(), end: lw.end.toLocaleDateString() },
+        lastWeekAdj: { start: lwAdjusted.start.toLocaleDateString(), end: lwAdjusted.end.toLocaleDateString() },
+        daysIntoWeek
     });
     
     const COL_SOURCE=15, COL_SUBSOURCE=16, COL_ADM=17, COL_CREATED=8, COL_AMOUNT_PROJ=5;
@@ -945,7 +971,7 @@ function renderThisWeekSection(){
     };
 
     const curr = calcRangeMetrics(w, 'Current');
-    const prev = calcRangeMetrics(lw, 'Previous');
+    const prev = calcRangeMetrics(lwAdjusted, 'Previous');
 
     // Update Main Metrics
     ids.pipeTotal.textContent=toCurrency(curr.pipeTotal);
@@ -965,8 +991,8 @@ function renderThisWeekSection(){
         const color = diff > 0 ? 'text-green-600' : (diff < 0 ? 'text-red-600' : 'text-gray-500');
         
         let text = '';
-        if(diff === 0) text = 'No change vs last week';
-        else text = `${arrow} ${format(Math.abs(diff))} vs last week`;
+        if(diff === 0) text = 'No change vs last week (same day)';
+        else text = `${arrow} ${format(Math.abs(diff))} vs last week (same day)`;
         
         el.className = `text-xs font-medium mb-2 ${color}`;
         el.textContent = text;
@@ -983,6 +1009,12 @@ function renderThisWeekSection(){
     const COL_A_DATE=0, COL_A_ASSIGNED=1, COL_A_ROLE=2, COL_A_TYPE=7, COL_A_CALL_RESULT=9;
     
     console.log('[ThisWeek] Total Activities:', aRows.length);
+    if(aRows.length > 0) {
+        console.log('[ThisWeek] First Activity Row:', aRows[0]);
+        const d = parseSheetDate(aRows[0][COL_A_DATE]);
+        console.log('[ThisWeek] First Activity Date Parsed:', d, 'Original:', aRows[0][COL_A_DATE]);
+        console.log('[ThisWeek] First Activity Role:', aRows[0][COL_A_ROLE]);
+    }
     
     const actRows=aRows.filter(r=>{
       if(String(r[COL_A_ROLE]||'').toLowerCase().trim()!=='adm') return false;
