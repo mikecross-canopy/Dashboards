@@ -584,12 +584,14 @@ function renderOppDeeperInsights(dataset){
     if(oppAvgWonByADMChart){ oppAvgWonByADMChart.destroy(); oppAvgWonByADMChart=null; }
     const cA = ensureOppCanvas('oppAvgWonByADMChart');
     if(cA){
-      const entries = Object.entries(byAdm).map(([adm,v])=>{
-        const am = v.MarketingInbound.wonCnt? v.MarketingInbound.wonSum/v.MarketingInbound.wonCnt : 0;
-        const ai = v.InboundADM.wonCnt? v.InboundADM.wonSum/v.InboundADM.wonCnt : 0;
-        const ao = v.Outbound.wonCnt? v.Outbound.wonSum/v.Outbound.wonCnt : 0;
-        return { adm, am, ai, ao, won:v.won };
-      }).sort((a,b)=>b.won - a.won).slice(0,10);
+      const entries = Object.entries(byAdm)
+        .filter(([adm]) => adm!=='Unknown' && !adm.toLowerCase().includes('admin'))
+        .map(([adm,v])=>{
+          const am = v.MarketingInbound.wonCnt? v.MarketingInbound.wonSum/v.MarketingInbound.wonCnt : 0;
+          const ai = v.InboundADM.wonCnt? v.InboundADM.wonSum/v.InboundADM.wonCnt : 0;
+          const ao = v.Outbound.wonCnt? v.Outbound.wonSum/v.Outbound.wonCnt : 0;
+          return { adm, am, ai, ao, won:v.won };
+        }).sort((a,b)=>b.won - a.won).slice(0,10);
       const labels = entries.map(e=>e.adm);
       const mInboundData = entries.map(e=>e.am);
       const iAdmData = entries.map(e=>e.ai);
@@ -600,7 +602,7 @@ function renderOppDeeperInsights(dataset){
           { label:'Inbound ADM Avg', data: iAdmData, backgroundColor:'rgba(34,197,94,0.8)' },
           { label:'Outbound Avg', data: outboundData, backgroundColor:'rgba(59,130,246,0.8)' }
         ] },
-        options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, layout:{ padding:{ right:24 } }, plugins:{ title:{display:true,text:'Average Closed Won Amount by ADM'}, datalabels:{ anchor:'end', align:'right', offset:4, clamp:true, color:'#111', backgroundColor:'rgba(255,255,255,0.85)', borderColor:'rgba(0,0,0,0.08)', borderWidth:1, borderRadius:4, padding:3, font:{size:9,weight:'600'}, formatter:(v)=>toCurrency(v) } }, scales:{ x:{ beginAtZero:true }, y:{ stacked:false } } }
+        options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, layout:{ padding:{ right:24 } }, plugins:{ title:{display:true,text:'Average Closed Won Amount by ADM'}, datalabels:{ anchor:'end', align:'right', offset:4, clamp:true, color:'#111', backgroundColor:'rgba(255,255,255,0.85)', borderColor:'rgba(0,0,0,0.08)', borderWidth:1, borderRadius:4, padding:3, font:{size:9,weight:'600'}, formatter:(v)=>v>0?toCurrency(v):'' } }, scales:{ x:{ beginAtZero:true }, y:{ stacked:false } } }
       });
     }
 
