@@ -828,19 +828,31 @@ function getThisWeekRange(){
   return {start,end};
 }
 
+function getLastWeekRange(){
+  const w = getThisWeekRange();
+  const start = new Date(w.start); start.setDate(start.getDate()-7);
+  const end = new Date(w.end); end.setDate(end.getDate()-7);
+  return {start,end};
+}
+
 function renderThisWeekSection(){
   try{
     const ids={
       pipeTotal:document.getElementById('twPipelineTotal'),
+      pipeComp:document.getElementById('twPipelineComparison'),
       pipeIn:document.getElementById('twPipelineInbound'),
       pipeOut:document.getElementById('twPipelineOutbound'),
       oppTotal:document.getElementById('twOppsTotal'),
+      oppComp:document.getElementById('twOppsComparison'),
       oppIn:document.getElementById('twOppsInbound'),
       oppOut:document.getElementById('twOppsOutbound'),
       table:document.getElementById('thisWeekTeamHighlightsBody')
     };
     if(!ids.pipeTotal||!ids.pipeIn||!ids.pipeOut||!ids.oppTotal||!ids.oppIn||!ids.oppOut||!ids.table) return;
+    
     const w=getThisWeekRange();
+    const lw=getLastWeekRange();
+    
     const COL_SOURCE=15, COL_SUBSOURCE=16, COL_ADM=17, COL_CREATED=8, COL_AMOUNT_PROJ=5;
     const isMarketingProspectScheduled = r => {
       const srcRaw=String(r?.[COL_SOURCE]||'').trim().toLowerCase();
@@ -865,24 +877,84 @@ function renderThisWeekSection(){
       if(isMarketing || isSales) return 'Outbound';
       return 'Other';
     };
-    const oppRows=(admOppData||[]).filter(isAdmSourced).filter(r=>{
-      const d=parseSheetDate(r[COL_CREATED]); if(!d) return false; if(!inAllowedYears(d)) return false; return d>=w.start && d<=w.end;
-    }).filter(r=>{
+
+    const filterByTeam = (r) => {
       const t = classify(r);
       if(admTeamFilter==='all') return true;
       return admTeamFilter==='inbound' ? (t==='MarketingInbound' || t==='InboundADM') : t==='Outbound';
-    });
-    let oppIn=0, oppOut=0, pipeIn=0, pipeOut=0;
-    const perAdm={};
-    oppRows.forEach(r=>{
-      const cls=classify(r);
-      const amtProj=parseSheetNumber(r[COL_AMOUNT_PROJ]);
-      const val=amtProj>0? amtProj : 0;
-      const admName=String(r[COL_ADM]||'Unknown').trim()||'Unknown';
-      if(!perAdm[admName]) perAdm[admName]={calls:0,emails:0,demos:0,oppIn:0,oppOut:0,pipeIn:0,pipeOut:0};
-      if(cls==='MarketingInbound' || cls==='InboundADM'){ oppIn+=1; pipeIn+=val; perAdm[admName].oppIn+=1; perAdm[admName].pipeIn+=val; }
-      else if(cls==='Outbound'){ oppOut+=1; pipeOut+=val; perAdm[admName].oppOut+=1; perAdm[admName].pipeOut+=val; }
-    });
+    };
+
+    const allOpps = (admOppData||[]).filter(isAdmSourced);
+
+    // Calculate metrics for a given date range
+    const calcRangeMetrics = (range) => {
+      const rows = allOpps.filter(r=>{
+        const d=parseSheetDate(r[COL_CREATED]); if(!d) return false; if(!inAllowedYears(d)) return false; 
+        return d>=range.start && d<=range.end;
+      }).filter(filterByTeam);
+
+      let oppTotal=0, oppIn=0, oppOut=0, pipeTotal=0, pipeIn=0, pipeOut=0;
+      const perUser={};
+
+      rows.forEach(r=>{
+        const cls=classify(r);
+        const amtProj=parseSheetNumber(r[COL_AMOUNT_PROJ]);
+        const val=amtProj>0? amtProj : 0;
+        const admName=String(r[COL_ADM]||'Unknown').trim()||'Unknown';
+        
+        oppTotal++;
+        pipeTotal+=val;
+        
+        if(!perUser[admName]) perUser[admName]={oppIn:0,oppOut:0,pipeIn:0,pipeOut:0};
+
+        if(cls==='MarketingInbound' || cls==='InboundADM'){ 
+          oppIn++; pipeIn+=val; 
+          perUser[admName].oppIn++; perUser[admName].pipeIn+=val; 
+        }
+        else if(cls==='Outbound'){ 
+          oppOut++; pipeOut+=val; 
+          perUser[admName].oppOut++; perUser[admName].pipeOut+=val; 
+        }
+      });
+      return { oppTotal, oppIn, oppOut, pipeTotal, pipeIn, pipeOut, perUser };
+    };
+
+    const curr = calcRangeMetrics(w);
+    const prev = calcRangeMetrics(lw);
+
+    // Update Main Metrics
+    ids.pipeTotal.textContent=toCurrency(curr.pipeTotal);
+    ids.pipeIn.textContent=toCurrency(curr.pipeIn);
+    ids.pipeOut.textContent=toCurrency(curr.pipeOut);
+    
+    ids.oppTotal.textContent=curr.oppTotal.toLocaleString();
+    ids.oppIn.textContent=curr.oppIn.toLocaleString();
+    ids.oppOut.textContent=curr.oppOut.toLocaleString();
+
+    // Update Comparisons
+    const updateComp = (el, current, previous, isCurrency) => {
+        if(!el) return;
+        const diff = current - previous;
+        const format = (v) => isCurrency ? toCurrency(v) : Math.abs(v).toLocaleString();
+        const arrow = diff > 0 ? '▲' : (diff < 0 ? '▼' : '—');
+        const color = diff > 0 ? 'text-green-600' : (diff < 0 ? 'text-red-600' : 'text-gray-500');
+        const suffix = isCurrency ? ' last week' : ' last week';
+        
+        let text = '';
+        if(diff === 0) text = 'No change vs last week';
+        else text = `${arrow} ${format(Math.abs(diff))} vs last week`;
+        
+        el.className = `text-xs font-medium mb-2 ${color}`;
+        el.textContent = text;
+    };
+
+    updateComp(ids.pipeComp, curr.pipeTotal, prev.pipeTotal, true);
+    updateComp(ids.oppComp, curr.oppTotal, prev.oppTotal, false);
+
+    // Update Team Highlights Table (Only for This Week)
+    // We also need Activity data for This Week to populate the table
+    const perAdm = curr.perUser;
+    
     const aRows=(admActivitiesData||[]);
     const COL_A_DATE=0, COL_A_ASSIGNED=1, COL_A_ROLE=2, COL_A_TYPE=7, COL_A_CALL_RESULT=9;
     const actRows=aRows.filter(r=>{
@@ -893,26 +965,28 @@ function renderThisWeekSection(){
       const inbound = isInboundAssigned(assigned);
       return admTeamFilter==='inbound' ? inbound : !inbound;
     });
+    
     actRows.forEach(r=>{
       const user=String(r[COL_A_ASSIGNED]||'Unknown').trim()||'Unknown';
       const typeRaw=String(r[COL_A_TYPE]||'').toLowerCase();
       const isCall=typeRaw.includes('call')||typeRaw.includes('phone');
       const isEmail=typeRaw.includes('email')||typeRaw.includes('e-mail');
       const callRes=String(r[COL_A_CALL_RESULT]||'').toLowerCase();
-      if(!perAdm[user]) perAdm[user]={calls:0,emails:0,demos:0,oppIn:0,oppOut:0,pipeIn:0,pipeOut:0};
+      
+      if(!perAdm[user]) perAdm[user]={oppIn:0,oppOut:0,pipeIn:0,pipeOut:0, calls:0, emails:0, demos:0}; // Initialize if not present from opps
+      if(!perAdm[user].calls) perAdm[user].calls=0;
+      if(!perAdm[user].emails) perAdm[user].emails=0;
+      if(!perAdm[user].demos) perAdm[user].demos=0;
+
       if(isCall) perAdm[user].calls++;
       if(isEmail) perAdm[user].emails++;
       if(callRes==='demo set' || callRes.includes('demo')) perAdm[user].demos++;
     });
-    ids.pipeTotal.textContent=toCurrency(pipeIn+pipeOut);
-    ids.pipeIn.textContent=toCurrency(pipeIn);
-    ids.pipeOut.textContent=toCurrency(pipeOut);
-    ids.oppTotal.textContent=(oppIn+oppOut).toLocaleString();
-    ids.oppIn.textContent=oppIn.toLocaleString();
-    ids.oppOut.textContent=oppOut.toLocaleString();
+
     ids.table.innerHTML='';
     const entries=Object.entries(perAdm).map(([u,v])=>({ user:u, ...v, totalOpp:(v.oppIn||0)+(v.oppOut||0), totalAct:(v.calls||0)+(v.emails||0) }))
       .sort((a,b)=> (b.totalOpp - a.totalOpp) || (b.totalAct - a.totalAct));
+      
     if(entries.length===0){
       const tr=document.createElement('tr'); tr.innerHTML='<td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No data for this week</td>'; ids.table.appendChild(tr);
     }else{
