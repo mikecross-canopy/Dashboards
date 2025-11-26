@@ -109,7 +109,7 @@ function renderActivitiesSequenceInsights(rows){
     const COL_DATE=17, COL_ASSIGNED=1, COL_ROLE=2, COL_TYPE=7, COL_CALL_RESULT=9, COL_DISP=11, COL_CONNECT=21;
     if(!Array.isArray(rows) || rows.length===0) return;
     // Filter: ADM role
-    const roleRows = rows.filter(r => String(r[COL_ROLE]||'').toLowerCase().trim()==='adm');
+    const roleRows = rows.filter(r => String(r[COL_ROLE]||'').toLowerCase().trim().includes('adm'));
     // Filter: team selection using assigned name
     const teamRows = roleRows.filter(r => {
       const assigned = r[COL_ASSIGNED]; const inbound = isInboundAssigned(assigned);
@@ -181,8 +181,8 @@ function initADMDateFilterControls(){
 function calculateADMActivitiesMetrics(rows){
   if(!rows||rows.length===0){ return { totalCalls:0,totalEmails:0,demoSets:0,avgCallDurationForDemos:0,callsPerDemo:0,emailsPerDemo:0,callsPerAnswered:0,filteredActivities:0, perUser:[] }; }
   const COL_DATE=17, COL_ASSIGNED=1, COL_ROLE=2, COL_TYPE=7, COL_CALL_DUR=8, COL_CALL_RESULT=9, COL_DISP=11, COL_CONNECT=21;
-  // Filter: role === 'adm'
-  const roleRows = rows.filter(r => String(r[COL_ROLE]||'').toLowerCase().trim()==='adm');
+  // Filter: role includes 'adm'
+  const roleRows = rows.filter(r => String(r[COL_ROLE]||'').toLowerCase().trim().includes('adm'));
   // Filter by team selection
   const teamRows = roleRows.filter(r => {
     const assigned = r[COL_ASSIGNED];
@@ -984,8 +984,16 @@ function renderThisWeekSection(){
     const aRows=(admActivitiesData||[]);
     const COL_A_DATE=17, COL_A_ASSIGNED=1, COL_A_ROLE=2, COL_A_TYPE=7, COL_A_CALL_RESULT=9;
     
+    // Debug: Check unique roles
+    const uniqueRoles = new Set();
+    aRows.slice(0, 1000).forEach(r => uniqueRoles.add(String(r[COL_A_ROLE]||'').trim()));
+    console.log('[ThisWeek] Sample Roles:', Array.from(uniqueRoles));
+
     const actRows=aRows.filter(r=>{
-      if(String(r[COL_A_ROLE]||'').toLowerCase().trim()!=='adm') return false;
+      const role = String(r[COL_A_ROLE]||'').toLowerCase().trim();
+      // Relaxed filter: check if role includes 'adm'
+      if(!role.includes('adm')) return false;
+      
       const d=parseSheetDate(r[COL_A_DATE]); if(!d) return false; 
       // Check date range
       const inRange = d>=w.start && d<=w.end;
