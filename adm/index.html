@@ -145,8 +145,25 @@
 
         <div class="bg-white p-6 rounded-lg shadow mb-8">
             <h2 class="text-xl font-semibold mb-4">ADM Activities Overview</h2>
-            <div class="chart-container">
-                <canvas id="admActivitiesChart"></canvas>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="bg-white rounded-lg border p-4">
+                    <h3 class="text-sm font-semibold text-gray-600 mb-2">Volume</h3>
+                    <div class="relative h-60">
+                        <canvas id="admVolumeChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg border p-4">
+                    <h3 class="text-sm font-semibold text-gray-600 mb-2">Outcomes</h3>
+                    <div class="relative h-60">
+                        <canvas id="admOutcomesChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg border p-4">
+                    <h3 class="text-sm font-semibold text-gray-600 mb-2">Efficiency</h3>
+                    <div class="relative h-60">
+                        <canvas id="admEfficiencyChart"></canvas>
+                    </div>
+                </div>
             </div>
         </div>
 
