@@ -106,7 +106,7 @@ function destroySequenceCharts(){ if(seqDemoSetsChart){ seqDemoSetsChart.destroy
 function renderActivitiesSequenceInsights(rows){
   try{
     destroySequenceCharts();
-    const COL_DATE=0, COL_ASSIGNED=1, COL_ROLE=2, COL_TYPE=7, COL_CALL_RESULT=9, COL_DISP=11, COL_CONNECT=21;
+    const COL_DATE=17, COL_ASSIGNED=1, COL_ROLE=2, COL_TYPE=7, COL_CALL_RESULT=9, COL_DISP=11, COL_CONNECT=21;
     if(!Array.isArray(rows) || rows.length===0) return;
     // Filter: ADM role
     const roleRows = rows.filter(r => String(r[COL_ROLE]||'').toLowerCase().trim()==='adm');
@@ -180,7 +180,7 @@ function initADMDateFilterControls(){
 
 function calculateADMActivitiesMetrics(rows){
   if(!rows||rows.length===0){ return { totalCalls:0,totalEmails:0,demoSets:0,avgCallDurationForDemos:0,callsPerDemo:0,emailsPerDemo:0,callsPerAnswered:0,filteredActivities:0, perUser:[] }; }
-  const COL_DATE=0, COL_ASSIGNED=1, COL_ROLE=2, COL_TYPE=7, COL_CALL_DUR=8, COL_CALL_RESULT=9, COL_DISP=11, COL_CONNECT=21;
+  const COL_DATE=17, COL_ASSIGNED=1, COL_ROLE=2, COL_TYPE=7, COL_CALL_DUR=8, COL_CALL_RESULT=9, COL_DISP=11, COL_CONNECT=21;
   // Filter: role === 'adm'
   const roleRows = rows.filter(r => String(r[COL_ROLE]||'').toLowerCase().trim()==='adm');
   // Filter by team selection
@@ -871,34 +871,14 @@ function renderThisWeekSection(){
     const lw=getLastWeekRange();
     
     // Adjust Last Week to match current week's progress (Same Point in Time)
-    // getThisWeekRange returns Mon-Sun.
-    // If today is Wednesday, we have Mon, Tue, Wed (3 days).
-    // We should compare against Mon, Tue, Wed of last week.
     const now = new Date();
-    // day: 0=Sun...6=Sat. Mon=1.
-    // diff from Mon: (day+6)%7. Mon(1)->0. Wed(3)->2.
-    // daysIntoWeek = diff + 1. (1 for Mon, 3 for Wed).
-    // If today is Sunday (6), daysIntoWeek=7.
-    // However, we only want to limit the *end* date of last week.
     const daysIntoWeek = (now.getDay() + 6) % 7 + 1;
-    
-    // If we are viewing a past period via filter, this logic might need adjustment, 
-    // but this section is explicitly "This Week", so it assumes strict current week context.
     
     const lwEndAdjusted = new Date(lw.start);
     lwEndAdjusted.setDate(lwEndAdjusted.getDate() + daysIntoWeek - 1);
-    // Set end of day
     lwEndAdjusted.setHours(23,59,59,999);
 
-    // Use this adjusted range for comparison
     const lwAdjusted = { start: lw.start, end: lwEndAdjusted };
-    
-    console.log('[ThisWeek] Ranges:', { 
-        thisWeek: { start: w.start.toLocaleDateString(), end: w.end.toLocaleDateString() },
-        lastWeekFull: { start: lw.start.toLocaleDateString(), end: lw.end.toLocaleDateString() },
-        lastWeekAdj: { start: lwAdjusted.start.toLocaleDateString(), end: lwAdjusted.end.toLocaleDateString() },
-        daysIntoWeek
-    });
     
     const COL_SOURCE=15, COL_SUBSOURCE=16, COL_ADM=17, COL_CREATED=8, COL_AMOUNT_PROJ=5;
     const isMarketingProspectScheduled = r => {
@@ -934,13 +914,11 @@ function renderThisWeekSection(){
     const allOpps = (admOppData||[]).filter(isAdmSourced);
 
     // Calculate metrics for a given date range
-    const calcRangeMetrics = (range, label) => {
+    const calcRangeMetrics = (range) => {
       const rows = allOpps.filter(r=>{
         const d=parseSheetDate(r[COL_CREATED]); if(!d) return false; if(!inAllowedYears(d)) return false; 
         return d>=range.start && d<=range.end;
       }).filter(filterByTeam);
-
-      console.log(`[ThisWeek] ${label} Opp Rows:`, rows.length);
 
       let oppTotal=0, oppIn=0, oppOut=0, pipeTotal=0, pipeIn=0, pipeOut=0;
       const perUser={};
@@ -951,8 +929,6 @@ function renderThisWeekSection(){
         const val=amtProj>0? amtProj : 0;
         const admName=String(r[COL_ADM]||'Unknown').trim()||'Unknown';
         
-        if(val > 100000) console.log(`[ThisWeek] Large Deal in ${label}:`, { admName, val, row: r });
-
         oppTotal++;
         pipeTotal+=val;
         
@@ -970,8 +946,8 @@ function renderThisWeekSection(){
       return { oppTotal, oppIn, oppOut, pipeTotal, pipeIn, pipeOut, perUser };
     };
 
-    const curr = calcRangeMetrics(w, 'Current');
-    const prev = calcRangeMetrics(lwAdjusted, 'Previous');
+    const curr = calcRangeMetrics(w);
+    const prev = calcRangeMetrics(lwAdjusted);
 
     // Update Main Metrics
     ids.pipeTotal.textContent=toCurrency(curr.pipeTotal);
@@ -1006,15 +982,7 @@ function renderThisWeekSection(){
     const perAdm = curr.perUser;
     
     const aRows=(admActivitiesData||[]);
-    const COL_A_DATE=0, COL_A_ASSIGNED=1, COL_A_ROLE=2, COL_A_TYPE=7, COL_A_CALL_RESULT=9;
-    
-    console.log('[ThisWeek] Total Activities:', aRows.length);
-    if(aRows.length > 0) {
-        console.log('[ThisWeek] First Activity Row:', aRows[0]);
-        const d = parseSheetDate(aRows[0][COL_A_DATE]);
-        console.log('[ThisWeek] First Activity Date Parsed:', d, 'Original:', aRows[0][COL_A_DATE]);
-        console.log('[ThisWeek] First Activity Role:', aRows[0][COL_A_ROLE]);
-    }
+    const COL_A_DATE=17, COL_A_ASSIGNED=1, COL_A_ROLE=2, COL_A_TYPE=7, COL_A_CALL_RESULT=9;
     
     const actRows=aRows.filter(r=>{
       if(String(r[COL_A_ROLE]||'').toLowerCase().trim()!=='adm') return false;
@@ -1030,8 +998,6 @@ function renderThisWeekSection(){
       const inbound = isInboundAssigned(assigned);
       return admTeamFilter==='inbound' ? inbound : !inbound;
     });
-    
-    console.log('[ThisWeek] Filtered Activities for Week:', actRows.length);
     if(actRows.length > 0) console.log('[ThisWeek] Sample Activity:', actRows[0]);
 
     actRows.forEach(r=>{
