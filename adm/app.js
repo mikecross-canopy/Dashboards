@@ -869,6 +869,10 @@ function renderThisWeekSection(){
     
     const w=getThisWeekRange();
     const lw=getLastWeekRange();
+    console.log('[ThisWeek] Ranges:', { 
+        thisWeek: { start: w.start.toLocaleDateString(), end: w.end.toLocaleDateString() },
+        lastWeek: { start: lw.start.toLocaleDateString(), end: lw.end.toLocaleDateString() }
+    });
     
     const COL_SOURCE=15, COL_SUBSOURCE=16, COL_ADM=17, COL_CREATED=8, COL_AMOUNT_PROJ=5;
     const isMarketingProspectScheduled = r => {
@@ -904,11 +908,13 @@ function renderThisWeekSection(){
     const allOpps = (admOppData||[]).filter(isAdmSourced);
 
     // Calculate metrics for a given date range
-    const calcRangeMetrics = (range) => {
+    const calcRangeMetrics = (range, label) => {
       const rows = allOpps.filter(r=>{
         const d=parseSheetDate(r[COL_CREATED]); if(!d) return false; if(!inAllowedYears(d)) return false; 
         return d>=range.start && d<=range.end;
       }).filter(filterByTeam);
+
+      console.log(`[ThisWeek] ${label} Opp Rows:`, rows.length);
 
       let oppTotal=0, oppIn=0, oppOut=0, pipeTotal=0, pipeIn=0, pipeOut=0;
       const perUser={};
@@ -919,6 +925,8 @@ function renderThisWeekSection(){
         const val=amtProj>0? amtProj : 0;
         const admName=String(r[COL_ADM]||'Unknown').trim()||'Unknown';
         
+        if(val > 100000) console.log(`[ThisWeek] Large Deal in ${label}:`, { admName, val, row: r });
+
         oppTotal++;
         pipeTotal+=val;
         
@@ -936,8 +944,8 @@ function renderThisWeekSection(){
       return { oppTotal, oppIn, oppOut, pipeTotal, pipeIn, pipeOut, perUser };
     };
 
-    const curr = calcRangeMetrics(w);
-    const prev = calcRangeMetrics(lw);
+    const curr = calcRangeMetrics(w, 'Current');
+    const prev = calcRangeMetrics(lw, 'Previous');
 
     // Update Main Metrics
     ids.pipeTotal.textContent=toCurrency(curr.pipeTotal);
@@ -973,15 +981,27 @@ function renderThisWeekSection(){
     
     const aRows=(admActivitiesData||[]);
     const COL_A_DATE=0, COL_A_ASSIGNED=1, COL_A_ROLE=2, COL_A_TYPE=7, COL_A_CALL_RESULT=9;
+    
+    console.log('[ThisWeek] Total Activities:', aRows.length);
+    
     const actRows=aRows.filter(r=>{
       if(String(r[COL_A_ROLE]||'').toLowerCase().trim()!=='adm') return false;
-      const d=parseSheetDate(r[COL_A_DATE]); if(!d) return false; if(!inAllowedYears(d)) return false; if(!(d>=w.start && d<=w.end)) return false;
+      const d=parseSheetDate(r[COL_A_DATE]); if(!d) return false; 
+      // Check date range
+      const inRange = d>=w.start && d<=w.end;
+      if(!inRange) return false;
+      
+      if(!inAllowedYears(d)) return false;
+      
       if(admTeamFilter==='all') return true;
       const assigned = r[COL_A_ASSIGNED];
       const inbound = isInboundAssigned(assigned);
       return admTeamFilter==='inbound' ? inbound : !inbound;
     });
     
+    console.log('[ThisWeek] Filtered Activities for Week:', actRows.length);
+    if(actRows.length > 0) console.log('[ThisWeek] Sample Activity:', actRows[0]);
+
     actRows.forEach(r=>{
       const user=String(r[COL_A_ASSIGNED]||'Unknown').trim()||'Unknown';
       const typeRaw=String(r[COL_A_TYPE]||'').toLowerCase();
