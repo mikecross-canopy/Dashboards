@@ -11,8 +11,39 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../styles.css">
+    <style>
+        #loadingOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body class="bg-gray-100">
+    <div id="loadingOverlay">
+        <div class="spinner mb-4"></div>
+        <p class="text-lg font-semibold text-gray-700">Loading data...</p>
+    </div>
     <div class="container mx-auto px-4 py-8">
         <header class="mb-8">
             <h1 class="text-4xl font-bold mb-3" style="background: linear-gradient(135deg, #2B4BFF 0%, #0BE6C7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">ADM Activities Dashboard</h1>
@@ -75,12 +106,18 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div class="bg-white p-4 rounded-lg shadow border">
                     <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Pipeline Generated</h3>
-                    <p id="twPipelineTotal" class="text-2xl font-bold mt-2 mb-1" style="background: linear-gradient(135deg, #2B4BFF 0%, #0BE6C7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">$0</p>
+                    <div class="flex items-end gap-3">
+                        <p id="twPipelineTotal" class="text-2xl font-bold mt-2 mb-1" style="background: linear-gradient(135deg, #2B4BFF 0%, #0BE6C7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">$0</p>
+                        <p id="twPipelineComparison" class="text-xs font-medium mb-2 text-gray-500">vs $0 last week</p>
+                    </div>
                     <p class="text-sm text-gray-600"><span id="twPipelineInbound">$0</span> inbound • <span id="twPipelineOutbound">$0</span> outbound</p>
                 </div>
                 <div class="bg-white p-4 rounded-lg shadow border">
                     <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Opportunities Created</h3>
-                    <p id="twOppsTotal" class="text-2xl font-bold mt-2 mb-1" style="background: linear-gradient(135deg, #0BE6C7 0%, #2B4BFF 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</p>
+                    <div class="flex items-end gap-3">
+                        <p id="twOppsTotal" class="text-2xl font-bold mt-2 mb-1" style="background: linear-gradient(135deg, #0BE6C7 0%, #2B4BFF 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0</p>
+                        <p id="twOppsComparison" class="text-xs font-medium mb-2 text-gray-500">vs 0 last week</p>
+                    </div>
                     <p class="text-sm text-gray-600"><span id="twOppsInbound">0</span> inbound • <span id="twOppsOutbound">0</span> outbound</p>
                 </div>
             </div>
