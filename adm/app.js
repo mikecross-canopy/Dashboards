@@ -10,7 +10,7 @@ const CONFIG = window.CONFIG || {
 };
 
 let tokenClient; let gapiInited = false; let dataLoaded = false; let isLoading = false;
-let admActivitiesChart = null; let admActivitiesData = [];
+let admVolumeChart = null; let admOutcomesChart = null; let admEfficiencyChart = null; let admActivitiesData = [];
 // OppData charts
 let oppInboundOutboundCountChart = null, oppAmountBySourceChart = null, oppByADMChart = null, oppStageChart = null, oppCreatedByMonthChart = null;
 let oppClosedLostReasonBySourceChart = null, oppAvgWonBySourceChart = null, oppAvgWonByADMChart = null;
@@ -232,24 +232,76 @@ function calculateADMActivitiesMetrics(rows){
 }
 
 function renderADMActivities(rows){
-  // Destroy old chart
-  if(admActivitiesChart){ admActivitiesChart.destroy(); admActivitiesChart=null; }
+  // Destroy old charts
+  if(admVolumeChart){ admVolumeChart.destroy(); admVolumeChart=null; }
+  if(admOutcomesChart){ admOutcomesChart.destroy(); admOutcomesChart=null; }
+  if(admEfficiencyChart){ admEfficiencyChart.destroy(); admEfficiencyChart=null; }
+  
   const metrics = calculateADMActivitiesMetrics(rows);
-  const labels=['Calls','Emails','Demo Sets','Avg Call Duration','Calls/Demo','Emails/Demo','Answered Calls %'];
-  const values=[metrics.totalCalls,metrics.totalEmails,metrics.demoSets,metrics.avgCallDurationForDemos,metrics.callsPerDemo,metrics.emailsPerDemo,metrics.callsPerAnswered];
-  const colors=['rgba(59,130,246,0.8)','rgba(16,185,129,0.8)','rgba(245,158,11,0.8)','rgba(239,68,68,0.8)','rgba(168,85,247,0.8)','rgba(236,72,153,0.8)','rgba(34,197,94,0.8)'];
-  const canvas=document.getElementById('admActivitiesChart');
-  if(canvas){
-    const ctx=canvas.getContext('2d');
-    admActivitiesChart=new Chart(ctx,{
-      type:'bar',
-      data:{ labels, datasets:[{ label:'ADM Metrics', data:values.map(to2), backgroundColor:colors, borderColor:colors.map(c=>c.replace('0.8','1')), borderWidth:1, borderRadius:6, barThickness:40 }] },
-      options:{ responsive:true, maintainAspectRatio:false, resizeDelay:200,
-        plugins:{ legend:{display:false}, title:{display:true, text:'ADM Activities', font:{size:16, weight:'600'}, padding:20}, datalabels:{ display:false }, tooltip:{ callbacks:{ label:(ctx)=>{ const v=ctx.raw, l=ctx.label; if(l==='Avg Call Duration') return `${l}: ${formatDurationMinutes(v)}`; if(l==='Calls/Demo'||l==='Emails/Demo') return `${l}: ${to2(v)}`; if(l==='Answered Calls %') return `${l}: ${to2(v)}%`; return `${l}: ${Number(v).toLocaleString()}`; } } } },
-        scales:{ y:{ beginAtZero:true, grid:{display:true,color:'rgba(0,0,0,0.05)'}, ticks:{font:{size:11}} }, x:{ grid:{display:false}, ticks:{font:{size:11}, maxRotation:45, minRotation:45} } }
+  
+  // 1. Volume Chart
+  const vCanvas = document.getElementById('admVolumeChart');
+  if(vCanvas){
+    admVolumeChart = new Chart(vCanvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: ['Calls', 'Emails'],
+        datasets: [{
+          data: [metrics.totalCalls, metrics.totalEmails],
+          backgroundColor: ['rgba(59,130,246,0.8)', 'rgba(16,185,129,0.8)'],
+          borderRadius: 6, barThickness: 40
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, datalabels: { color: '#111', anchor: 'end', align: 'top', formatter: v=>v?v.toLocaleString():'' } },
+        scales: { y: { beginAtZero: true, grid: { display: true, color: 'rgba(0,0,0,0.05)' } }, x: { grid: { display: false } } }
       }
     });
   }
+
+  // 2. Outcomes Chart
+  const oCanvas = document.getElementById('admOutcomesChart');
+  if(oCanvas){
+    admOutcomesChart = new Chart(oCanvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: ['Demo Sets'],
+        datasets: [{
+          data: [metrics.demoSets],
+          backgroundColor: ['rgba(245,158,11,0.8)'],
+          borderRadius: 6, barThickness: 40
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, datalabels: { color: '#111', anchor: 'end', align: 'top', formatter: v=>v?v.toLocaleString():'' } },
+        scales: { y: { beginAtZero: true, grid: { display: true, color: 'rgba(0,0,0,0.05)' } }, x: { grid: { display: false } } }
+      }
+    });
+  }
+
+  // 3. Efficiency Chart
+  const eCanvas = document.getElementById('admEfficiencyChart');
+  if(eCanvas){
+    admEfficiencyChart = new Chart(eCanvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: ['Calls/Demo', 'Emails/Demo', 'Answered Calls %'],
+        datasets: [{
+          data: [metrics.callsPerDemo, metrics.emailsPerDemo, metrics.callsPerAnswered],
+          backgroundColor: ['rgba(168,85,247,0.8)', 'rgba(236,72,153,0.8)', 'rgba(34,197,94,0.8)'],
+          borderRadius: 6, barThickness: 40
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, datalabels: { color: '#111', anchor: 'end', align: 'top', formatter: v=>v?to2(v):'' } },
+        scales: { y: { beginAtZero: true, grid: { display: true, color: 'rgba(0,0,0,0.05)' } }, x: { grid: { display: false } } }
+      }
+    });
+  }
+
   // Metrics cards
   const mDiv=document.getElementById('adm-activities-metrics');
   if(mDiv){
