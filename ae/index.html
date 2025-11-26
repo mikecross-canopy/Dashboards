@@ -62,18 +62,53 @@
 
         <div class="bg-white p-6 rounded-lg shadow mb-8">
             <h2 class="text-xl font-semibold mb-4">Performance Charts</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <h3 class="text-lg font-medium text-gray-700 mb-3">Sales Performance</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 <div class="chart-container h-80">
                     <canvas id="attainmentChart"></canvas>
                 </div>
                 <div class="chart-container h-80">
                     <canvas id="winRateChart"></canvas>
                 </div>
-                <div class="chart-container h-80">
+            </div>
+
+            <h3 class="text-lg font-medium text-gray-700 mb-3">Activity & Self-Sourced</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="chart-container h-64">
+                    <canvas id="callsChart"></canvas>
+                </div>
+                <div class="chart-container h-64">
+                    <canvas id="selfDemosChart"></canvas>
+                </div>
+                <div class="chart-container h-64">
+                    <canvas id="selfOppsChart"></canvas>
+                </div>
+            </div>
+
+            <h3 class="text-lg font-medium text-gray-700 mb-3">Pipeline Health</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="chart-container h-64">
                     <canvas id="pipelineChart"></canvas>
                 </div>
-                <div class="chart-container h-80">
-                    <canvas id="callsChart"></canvas>
+                <div class="chart-container h-64">
+                    <canvas id="pipelineAgeChart"></canvas>
+                </div>
+                <div class="chart-container h-64">
+                    <canvas id="avgDaysToCloseChart"></canvas>
+                </div>
+            </div>
+
+            <h3 class="text-lg font-medium text-gray-700 mb-3">Deal Quality</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="chart-container h-64">
+                    <canvas id="adsChart"></canvas>
+                </div>
+                <div class="chart-container h-64">
+                    <canvas id="arpuChart"></canvas>
+                </div>
+                <div class="chart-container h-64">
+                    <canvas id="discountChart"></canvas>
                 </div>
             </div>
         </div>
