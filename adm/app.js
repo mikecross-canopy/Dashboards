@@ -977,88 +977,185 @@ function renderThisWeekSection(){
     updateComp(ids.pipeComp, curr.pipeTotal, prev.pipeTotal, true);
     updateComp(ids.oppComp, curr.oppTotal, prev.oppTotal, false);
 
-    // Update Team Highlights Table (Only for This Week)
-    // We also need Activity data for This Week to populate the table
-    const perAdm = curr.perUser;
-    
-    const aRows=(admActivitiesData||[]);
     const COL_A_DATE=17, COL_A_ASSIGNED=1, COL_A_ROLE=2, COL_A_TYPE=7, COL_A_CALL_RESULT=9;
     
-    // Debug: Check date range of data
-    let minDate=new Date(8640000000000000);
-    let maxDate=new Date(-8640000000000000);
-    let validDates=0;
-    aRows.forEach(r=>{
-        const d=parseSheetDate(r[COL_A_DATE]);
-        if(d && !isNaN(d.getTime())){
-            if(d<minDate) minDate=d;
-            if(d>maxDate) maxDate=d;
-            validDates++;
+    // Helper to count activities for a specific date range
+    const countActivities = (range) => {
+        const counts = {};
+        const aRows=(admActivitiesData||[]);
+        aRows.forEach(r=>{
+            const role = String(r[COL_A_ROLE]||'').toLowerCase().trim();
+            if(!role.includes('adm')) return;
+            
+            const d=parseSheetDate(r[COL_A_DATE]); if(!d) return;
+            if(!(d>=range.start && d<=range.end)) return;
+            if(!inAllowedYears(d)) return;
+
+            const assigned = r[COL_A_ASSIGNED];
+            const inbound = isInboundAssigned(assigned);
+            const matchTeam = admTeamFilter==='all' || (admTeamFilter==='inbound' ? inbound : !inbound);
+            if(!matchTeam) return;
+
+            const user=String(assigned||'Unknown').trim()||'Unknown';
+            const typeRaw=String(r[COL_A_TYPE]||'').toLowerCase();
+            const isCall=typeRaw.includes('call')||typeRaw.includes('phone');
+            const isEmail=typeRaw.includes('email')||typeRaw.includes('e-mail');
+            const callRes=String(r[COL_A_CALL_RESULT]||'').toLowerCase();
+
+            if(!counts[user]) counts[user]={calls:0,emails:0,demos:0};
+            if(isCall) counts[user].calls++;
+            if(isEmail) counts[user].emails++;
+            if(callRes==='demo set' || callRes.includes('demo')) counts[user].demos++;
+        });
+        return counts;
+    };
+
+    const currAct = countActivities(w);
+    const prevAct = countActivities(lwAdjusted);
+
+    // Merge Opps and Activities
+    // We need a set of all users involved in either Opps or Activities (current or previous)
+    // Actually, for "This Week", we usually only show people who have data THIS week, 
+    // but if they had data LAST week and 0 this week, should they show? 
+    // Usually "This Week" table implies active users. But for comparison, it's nice to see drop to 0.
+    // Let's include anyone with activity in EITHER period to be safe, or just Current. 
+    // User asked "how each person is performing compared to last week", so if they performed last week but not this week, they should probably appear with 0s.
+    
+    const allUsers = new Set([
+        ...Object.keys(curr.perUser),
+        ...Object.keys(currAct)
+    ]);
+    
+    let tableData = [];
+    allUsers.forEach(u => {
+        const cOpp = curr.perUser[u] || {oppIn:0,oppOut:0,pipeIn:0,pipeOut:0};
+        const cAct = currAct[u] || {calls:0,emails:0,demos:0};
+        const pOpp = prev.perUser[u] || {oppIn:0,oppOut:0,pipeIn:0,pipeOut:0};
+        const pAct = prevAct[u] || {calls:0,emails:0,demos:0};
+        
+        tableData.push({
+            user: u,
+            curr: { ...cOpp, ...cAct },
+            prev: { ...pOpp, ...pAct },
+            totalOpp: (cOpp.oppIn||0) + (cOpp.oppOut||0),
+            totalAct: (cAct.calls||0) + (cAct.emails||0)
+        });
+    });
+
+    // Sorting State (closure)
+    // Default sort: Total Opps Desc
+    if(!window.twSortState) window.twSortState = { col:'totalOpp', dir:'desc' };
+    
+    const renderTable = () => {
+        const { col, dir } = window.twSortState;
+        
+        // Sort data
+        tableData.sort((a,b) => {
+            let va, vb;
+            if(col === 'user') { va=a.user; vb=b.user; }
+            else if(col === 'calls') { va=a.curr.calls; vb=b.curr.calls; }
+            else if(col === 'emails') { va=a.curr.emails; vb=b.curr.emails; }
+            else if(col === 'demos') { va=a.curr.demos; vb=b.curr.demos; }
+            else if(col === 'oppIn') { va=a.curr.oppIn; vb=b.curr.oppIn; }
+            else if(col === 'oppOut') { va=a.curr.oppOut; vb=b.curr.oppOut; }
+            else if(col === 'pipeIn') { va=a.curr.pipeIn; vb=b.curr.pipeIn; }
+            else if(col === 'pipeOut') { va=a.curr.pipeOut; vb=b.curr.pipeOut; }
+            else { va=a.totalOpp; vb=b.totalOpp; } // Default
+            
+            if(va < vb) return dir==='asc' ? -1 : 1;
+            if(va > vb) return dir==='asc' ? 1 : -1;
+            return 0;
+        });
+
+        // Render Header
+        const headers = [
+            { id: 'user', label: 'ADM' },
+            { id: 'calls', label: 'Calls' },
+            { id: 'emails', label: 'Emails' },
+            { id: 'demos', label: 'Demo Sets' },
+            { id: 'oppIn', label: 'Opps In' },
+            { id: 'oppOut', label: 'Opps Out' },
+            { id: 'pipeIn', label: 'Pipeline In' },
+            { id: 'pipeOut', label: 'Pipeline Out' }
+        ];
+        
+        const thead = document.querySelector('#thisWeekTeamHighlightsTable thead');
+        if(!thead){
+            // If strict selector fails, try finding the table parent
+            // But we can just replace the innerHTML of ids.table's previous sibling if structure is consistent.
+            // Better to rely on IDs. I'll need to add ID to table in index.html or assume structure.
+            // The user provided HTML shows `ids.table` is `thisWeekTeamHighlightsBody`.
+            // So `ids.table.parentNode` is the `table`. `ids.table.parentNode.tHead` is the thead.
         }
-    });
-    console.log('[ThisWeek] Activity Data Status:', { 
-        totalRows: aRows.length, 
-        validDates,
-        minDate: minDate.toLocaleDateString(),
-        maxDate: maxDate.toLocaleDateString()
-    });
+        const tableEl = ids.table.parentNode;
+        let headEl = tableEl.tHead;
+        if(!headEl) { headEl = tableEl.createTHead(); }
+        
+        let thHtml = '<tr>';
+        headers.forEach(h => {
+            const isSorted = window.twSortState.col === h.id;
+            const arrow = isSorted ? (window.twSortState.dir === 'asc' ? ' ▲' : ' ▼') : '';
+            const style = isSorted ? 'bg-gray-100 text-gray-800' : 'text-gray-500';
+            thHtml += `<th data-col="${h.id}" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 transition-colors ${style}">${h.label}${arrow}</th>`;
+        });
+        thHtml += '</tr>';
+        headEl.innerHTML = thHtml;
+        
+        // Bind click events
+        headEl.querySelectorAll('th').forEach(th => {
+            th.addEventListener('click', () => {
+                const c = th.dataset.col;
+                if(window.twSortState.col === c) {
+                    window.twSortState.dir = window.twSortState.dir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    window.twSortState.col = c;
+                    window.twSortState.dir = 'desc';
+                }
+                renderTable();
+            });
+        });
 
-    const actRows=aRows.filter(r=>{
-      const role = String(r[COL_A_ROLE]||'').toLowerCase().trim();
-      // Relaxed filter: check if role includes 'adm'
-      if(!role.includes('adm')) return false;
-      
-      const d=parseSheetDate(r[COL_A_DATE]); if(!d) return false; 
-      // Check date range
-      const inRange = d>=w.start && d<=w.end;
-      if(!inRange) return false;
-      
-      if(!inAllowedYears(d)) return false;
-      
-      if(admTeamFilter==='all') return true;
-      const assigned = r[COL_A_ASSIGNED];
-      const inbound = isInboundAssigned(assigned);
-      return admTeamFilter==='inbound' ? inbound : !inbound;
-    });
-    if(actRows.length > 0) console.log('[ThisWeek] Sample Activity:', actRows[0]);
+        // Render Body
+        ids.table.innerHTML = '';
+        if(tableData.length === 0){
+            const tr=document.createElement('tr'); tr.innerHTML='<td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No data for this week</td>'; ids.table.appendChild(tr);
+        } else {
+            tableData.forEach((e, idx) => {
+                const tr = document.createElement('tr'); 
+                tr.className = idx%2===0 ? 'bg-white' : 'bg-gray-50';
+                
+                const renderCell = (curr, prev, isCurr=false) => {
+                    const diff = curr - prev;
+                    if(diff === 0) return isCurr ? toCurrency(curr) : curr.toLocaleString();
+                    
+                    const color = diff > 0 ? 'text-green-600' : 'text-red-600';
+                    const arrow = diff > 0 ? '▲' : '▼';
+                    const valStr = isCurr ? toCurrency(curr) : curr.toLocaleString();
+                    const diffStr = isCurr ? toCurrency(Math.abs(diff)) : Math.abs(diff).toLocaleString();
+                    
+                    return `
+                        <div class="flex flex-col">
+                            <span>${valStr}</span>
+                            <span class="text-xs ${color} font-medium">${arrow} ${diffStr}</span>
+                        </div>
+                    `;
+                };
+                
+                tr.innerHTML=`
+                  <td class="px-6 py-3 text-sm text-gray-900 align-top font-medium">${e.user}</td>
+                  <td class="px-6 py-3 text-sm text-gray-900 align-top">${renderCell(e.curr.calls, e.prev.calls)}</td>
+                  <td class="px-6 py-3 text-sm text-gray-900 align-top">${renderCell(e.curr.emails, e.prev.emails)}</td>
+                  <td class="px-6 py-3 text-sm text-gray-900 align-top">${renderCell(e.curr.demos, e.prev.demos)}</td>
+                  <td class="px-6 py-3 text-sm text-gray-900 align-top">${renderCell(e.curr.oppIn, e.prev.oppIn)}</td>
+                  <td class="px-6 py-3 text-sm text-gray-900 align-top">${renderCell(e.curr.oppOut, e.prev.oppOut)}</td>
+                  <td class="px-6 py-3 text-sm text-gray-900 align-top">${renderCell(e.curr.pipeIn, e.prev.pipeIn, true)}</td>
+                  <td class="px-6 py-3 text-sm text-gray-900 align-top">${renderCell(e.curr.pipeOut, e.prev.pipeOut, true)}</td>`;
+                ids.table.appendChild(tr);
+            });
+        }
+    };
+    
+    renderTable();
 
-    actRows.forEach(r=>{
-      const user=String(r[COL_A_ASSIGNED]||'Unknown').trim()||'Unknown';
-      const typeRaw=String(r[COL_A_TYPE]||'').toLowerCase();
-      const isCall=typeRaw.includes('call')||typeRaw.includes('phone');
-      const isEmail=typeRaw.includes('email')||typeRaw.includes('e-mail');
-      const callRes=String(r[COL_A_CALL_RESULT]||'').toLowerCase();
-      
-      if(!perAdm[user]) perAdm[user]={oppIn:0,oppOut:0,pipeIn:0,pipeOut:0, calls:0, emails:0, demos:0}; // Initialize if not present from opps
-      if(!perAdm[user].calls) perAdm[user].calls=0;
-      if(!perAdm[user].emails) perAdm[user].emails=0;
-      if(!perAdm[user].demos) perAdm[user].demos=0;
-
-      if(isCall) perAdm[user].calls++;
-      if(isEmail) perAdm[user].emails++;
-      if(callRes==='demo set' || callRes.includes('demo')) perAdm[user].demos++;
-    });
-
-    ids.table.innerHTML='';
-    const entries=Object.entries(perAdm).map(([u,v])=>({ user:u, ...v, totalOpp:(v.oppIn||0)+(v.oppOut||0), totalAct:(v.calls||0)+(v.emails||0) }))
-      .sort((a,b)=> (b.totalOpp - a.totalOpp) || (b.totalAct - a.totalAct));
-      
-    if(entries.length===0){
-      const tr=document.createElement('tr'); tr.innerHTML='<td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No data for this week</td>'; ids.table.appendChild(tr);
-    }else{
-      entries.forEach((e,idx)=>{
-        const tr=document.createElement('tr'); tr.className=idx%2===0?'bg-white':'bg-gray-50';
-        tr.innerHTML=`
-          <td class="px-6 py-3 text-sm text-gray-900">${e.user}</td>
-          <td class="px-6 py-3 text-sm text-gray-900">${(e.calls||0).toLocaleString()}</td>
-          <td class="px-6 py-3 text-sm text-gray-900">${(e.emails||0).toLocaleString()}</td>
-          <td class="px-6 py-3 text-sm text-gray-900">${(e.demos||0).toLocaleString()}</td>
-          <td class="px-6 py-3 text-sm text-gray-900">${(e.oppIn||0).toLocaleString()}</td>
-          <td class="px-6 py-3 text-sm text-gray-900">${(e.oppOut||0).toLocaleString()}</td>
-          <td class="px-6 py-3 text-sm text-gray-900">${toCurrency(e.pipeIn||0)}</td>
-          <td class="px-6 py-3 text-sm text-gray-900">${toCurrency(e.pipeOut||0)}</td>`;
-        ids.table.appendChild(tr);
-      });
-    }
   }catch(e){ console.error('Error rendering This Week section', e); }
 }
